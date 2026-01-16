@@ -4,7 +4,7 @@ const SubCategory = require("../../models/Admin/SubCategory");
 exports.createCategory = async (req, res) => {
   try {
     console.log("Create category - req.body:", req.body);
-    const { name } = req.body || {};
+    const { name, description } = req.body || {};
 
     if (!name || !name.trim()) {
       return res.status(400).json({
@@ -24,10 +24,15 @@ exports.createCategory = async (req, res) => {
       });
     }
 
-    // Create category with only name field
+    // Create category with name and description fields
     const categoryData = {
-      name: trimmedName
+      name: trimmedName,
     };
+    
+    // Only add description if it's not empty
+    if (description && description.trim()) {
+      categoryData.description = description.trim();
+    }
     
     console.log("Creating category with data:", categoryData);
     const category = await Category.create(categoryData);
@@ -80,7 +85,7 @@ exports.updateCategory = async (req, res) => {
   try {
     console.log("Update category - req.body:", req.body);
     console.log("Update category - req.params:", req.params);
-    const { name } = req.body || {};
+    const { name, description } = req.body || {};
     const { id } = req.params;
 
     if (!name || !name.trim()) {
@@ -104,9 +109,19 @@ exports.updateCategory = async (req, res) => {
       });
     }
 
+    // Prepare update data
+    const updateData = { 
+      name: trimmedName,
+    };
+    
+    // Only add description if it's not empty
+    if (description && description.trim()) {
+      updateData.description = description.trim();
+    }
+
     const updated = await Category.findByIdAndUpdate(
       id,
-      { $set: { name: trimmedName } },
+      { $set: updateData },
       { new: true, runValidators: true }
     );
 
