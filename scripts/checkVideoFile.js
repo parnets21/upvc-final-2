@@ -1,43 +1,60 @@
+/**
+ * Check if the video file exists and get its info
+ */
+
 const fs = require('fs');
 const path = require('path');
 
-const videoPath = 'uploads/video/1768645568671-589522897.mp4';
+const videoPath = 'uploads/video/1768670846445-543006425.mp4';
 const fullPath = path.join(__dirname, '..', videoPath);
 
-console.log('Checking video file:', fullPath);
-console.log('File exists:', fs.existsSync(fullPath));
+console.log('🎥 Checking video file...');
+console.log('File path:', fullPath);
 
 if (fs.existsSync(fullPath)) {
   const stats = fs.statSync(fullPath);
-  console.log('File size:', stats.size, 'bytes');
-  console.log('File size (MB):', (stats.size / 1024 / 1024).toFixed(2));
-  console.log('Created:', stats.birthtime);
-  console.log('Modified:', stats.mtime);
+  console.log('✅ File exists');
+  console.log('📊 File size:', (stats.size / 1024 / 1024).toFixed(2), 'MB');
+  console.log('📅 Created:', stats.birthtime);
+  console.log('📝 Modified:', stats.mtime);
   
-  // Read first few bytes to check file header
-  const fd = fs.openSync(fullPath, 'r');
-  const buffer = Buffer.allocUnsafe(20);
-  fs.readSync(fd, buffer, 0, 20, 0);
-  fs.closeSync(fd);
-  
-  console.log('File header (hex):', buffer.toString('hex'));
-  console.log('File header (ascii):', buffer.toString('ascii').replace(/[^\x20-\x7E]/g, '.'));
-  
-  // Check if it's a valid MP4 file (should start with specific bytes)
-  const mp4Signatures = [
-    '66747970', // 'ftyp' - MP4 signature
-    '00000018', // Another common MP4 start
-    '00000020', // Another common MP4 start
-  ];
-  
-  const headerHex = buffer.toString('hex');
-  const isValidMp4 = mp4Signatures.some(sig => headerHex.includes(sig));
-  console.log('Appears to be valid MP4:', isValidMp4);
-  
-  // Check for common video file signatures
-  if (headerHex.startsWith('000000')) {
-    console.log('File starts with null bytes - likely valid MP4');
+  // Check if file is empty or too small
+  if (stats.size === 0) {
+    console.log('❌ File is empty!');
+  } else if (stats.size < 1024) {
+    console.log('⚠️  File is very small (less than 1KB) - might be corrupted');
   } else {
-    console.log('Unexpected file header - may be corrupted');
+    console.log('✅ File size looks normal');
+  }
+  
+  // Try to read first few bytes to check file signature
+  try {
+    const buffer = fs.readFileSync(fullPath, { start: 0, end: 11 });
+    const hex = buffer.toString('hex');
+    console.log('🔍 File signature (first 12 bytes):', hex);
+    
+    // Check for MP4 signature
+    if (hex.includes('66747970') || hex.includes('6d646174')) {
+      console.log('✅ Valid MP4 file signature detected');
+    } else {
+      console.log('❌ Invalid MP4 file signature - file might be corrupted');
+    }
+  } catch (error) {
+    console.log('❌ Error reading file:', error.message);
+  }
+  
+} else {
+  console.log('❌ File does not exist');
+  
+  // Check if directory exists
+  const dir = path.dirname(fullPath);
+  if (fs.existsSync(dir)) {
+    console.log('📁 Directory exists, listing files:');
+    const files = fs.readdirSync(dir);
+    files.slice(0, 5).forEach(file => {
+      console.log('  -', file);
+    });
+  } else {
+    console.log('❌ Directory does not exist');
   }
 }

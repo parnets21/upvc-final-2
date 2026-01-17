@@ -10,19 +10,40 @@ const toAbsoluteUrl = (filePath) => {
   
   // If already an absolute URL, return as is
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    // Check for duplicated base URL and fix it
+    const baseUrl = process.env.BASE_URL || 'http://localhost:9000';
+    const duplicatedPattern = `${baseUrl}/${baseUrl}/`;
+    
+    if (filePath.includes(duplicatedPattern)) {
+      // Remove the first occurrence of base URL
+      return filePath.replace(`${baseUrl}/`, '');
+    }
+    
     return filePath;
   }
   
   // Normalize the path (remove leading slashes, fix backslashes)
   let normalizedPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
   
+  // Get base URL from environment or use default
+  const baseUrl = process.env.BASE_URL || 'http://localhost:9000';
+  
+  // Check if the path already contains the domain (common mistake)
+  const baseUrlWithoutProtocol = baseUrl.replace(/^https?:\/\//, '');
+  
+  // If the path contains the domain, it might be a malformed URL
+  if (normalizedPath.includes(baseUrlWithoutProtocol)) {
+    // Extract just the uploads part
+    const uploadsIndex = normalizedPath.indexOf('uploads/');
+    if (uploadsIndex !== -1) {
+      normalizedPath = normalizedPath.substring(uploadsIndex);
+    }
+  }
+  
   // Ensure it starts with 'uploads/'
   if (!normalizedPath.startsWith('uploads/')) {
     normalizedPath = 'uploads/' + normalizedPath;
   }
-  
-  // Get base URL from environment or use default
-  const baseUrl = process.env.BASE_URL || 'http://localhost:9000';
   
   // Construct the full URL
   return `${baseUrl}/${normalizedPath}`;
@@ -35,6 +56,16 @@ const toAbsoluteUrl = (filePath) => {
  */
 const normalizeFilePath = (filePath) => {
   if (!filePath) return '';
+  
+  // If it's already a full URL, extract just the path part
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    try {
+      const url = new URL(filePath);
+      filePath = url.pathname;
+    } catch (e) {
+      // If URL parsing fails, continue with original string
+    }
+  }
   
   // Replace backslashes with forward slashes
   let normalized = filePath.replace(/\\/g, '/');
