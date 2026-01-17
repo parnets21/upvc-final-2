@@ -2,31 +2,15 @@ const UpvcHomepage = require('../../models/Admin/Homepage');
 const fs = require('fs');
 const path = require('path');
 const { transcodeVideoIfNeeded } = require('../../utils/videoTranscoder');
+const { toAbsoluteUrl, normalizeFilePath } = require('../../utils/urlHelper');
 
 // Helper to generate file URL
 const getFileUrl = (file, req) => {
   if (!file) return null;
-  return `${req.protocol}://${req.get('host')}/${file.path.replace(/\\/g, '/')}`;
+  return toAbsoluteUrl(file.path.replace(/\\/g, '/'));
 };
 
-// Helper to normalize file path (extract relative path from uploads directory)
-const normalizeFilePath = (filePath) => {
-  if (!filePath) return null;
-  // Replace backslashes with forward slashes
-  let normalized = filePath.replace(/\\/g, '/');
-  // Extract path from 'uploads' directory onwards
-  const uploadsIndex = normalized.indexOf('uploads/');
-  if (uploadsIndex !== -1) {
-    normalized = normalized.substring(uploadsIndex);
-  } else if (!normalized.startsWith('uploads/')) {
-    normalized = 'uploads/' + normalized.replace(/^\//, '');
-  }
-  // Ensure it starts with uploads/
-  if (!normalized.startsWith('uploads/')) {
-    normalized = 'uploads/' + normalized;
-  }
-  return normalized;
-};
+// Remove the duplicate normalizeFilePath function since we're importing it from urlHelper
 
 // ========== CREATE Homepage ==========
 exports.createHomepage = async (req, res) => {
@@ -226,12 +210,37 @@ exports.updateHomepage = async (req, res) => {
 exports.getContent = async (req, res) => {
   try {
     const content = await UpvcHomepage.findOne();
-    // Return 200 with null data instead of 404 - allows frontend to handle empty state gracefully
-    res.status(200).json({ 
-      success: true, 
-      data: content || null,
-      message: content ? 'Homepage content retrieved successfully' : 'No homepage content found'
-    });
+    
+    if (content) {
+      // Ensure all URLs are properly formatted using the URL helper
+      const processedContent = {
+        ...content.toObject(),
+        videoUrl: toAbsoluteUrl(content.videoUrl),
+        sponsorLogo: content.sponsorLogo ? toAbsoluteUrl(content.sponsorLogo) : null,
+        keyMoments: content.keyMoments ? content.keyMoments.map(moment => ({
+          ...moment.toObject(),
+          thumbnail: toAbsoluteUrl(moment.thumbnail)
+        })) : []
+      };
+      
+      console.log('[getContent] Processed content URLs:', {
+        videoUrl: processedContent.videoUrl,
+        sponsorLogo: processedContent.sponsorLogo,
+        keyMomentsCount: processedContent.keyMoments.length
+      });
+      
+      res.status(200).json({ 
+        success: true, 
+        data: processedContent,
+        message: 'Homepage content retrieved successfully'
+      });
+    } else {
+      res.status(200).json({ 
+        success: true, 
+        data: null,
+        message: 'No homepage content found'
+      });
+    }
   } catch (error) {
     console.error('Error in getContent:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
