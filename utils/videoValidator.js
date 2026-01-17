@@ -9,7 +9,6 @@ const path = require('path');
 const validateVideoFile = (filePath) => {
   try {
     const fullPath = path.join(process.cwd(), filePath);
-    
     // Check if file exists
     if (!fs.existsSync(fullPath)) {
       return { valid: false, error: 'File does not exist' };

@@ -73,10 +73,12 @@ const validateFileType = (file, expectedType) => {
     return { valid: false, error: 'No file provided' };
   }
   
-  const videoMimeTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+  // Only allow mobile-compatible video formats for better ExoPlayer support
+  const videoMimeTypes = ['video/mp4', 'video/quicktime'];
   const imageMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
   
-  const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov'];
+  // Restrict to MP4 and MOV only for mobile compatibility
+  const videoExtensions = ['.mp4', '.mov'];
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
   
   const fileExtension = path.extname(file.originalname).toLowerCase();
@@ -89,7 +91,15 @@ const validateFileType = (file, expectedType) => {
     if (!validMime && !validExt) {
       return { 
         valid: false, 
-        error: `Invalid video file. Expected formats: ${videoExtensions.join(', ')}` 
+        error: `Invalid video file. Only MP4 and MOV formats are supported for mobile compatibility. Received: ${fileExtension}` 
+      };
+    }
+    
+    // Additional check for problematic formats
+    if (fileExtension === '.avi' || fileMimeType.includes('avi')) {
+      return {
+        valid: false,
+        error: 'AVI format is not supported. Please use MP4 format for mobile compatibility.'
       };
     }
   } else if (expectedType === 'image') {

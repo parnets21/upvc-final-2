@@ -7,29 +7,89 @@ const normalizeFilePath = (filePath) => {
   return filePath.replace(/\\/g, '/');
 };
 
-// Get all window options with pagination 
+// Get all window options with enhanced pagination, search, and sorting
 
 exports.getAllOptions = async (req, res) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 5;
-        const skip = (page - 1) * limit;
+        // Extract query parameters with defaults
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = req.query.limit === 'all' ? 0 : Math.max(1, Math.min(100, parseInt(req.query.limit) || 12));
+        const search = req.query.search ? req.query.search.trim() : '';
+        const sortBy = req.query.sortBy || 'createdAt';
+        const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
 
-        const options = await WindowSubOptions.find()
-            .populate('option')
-            .skip(skip)
-            .limit(limit)
-            .sort({ createdAt: -1 });
+        // Build search query
+        let searchQuery = {};
+        if (search) {
+            searchQuery = {
+                $or: [
+                    { title: { $regex: search, $options: 'i' } },
+                    { features: { $elemMatch: { $regex: search, $options: 'i' } } }
+                ]
+            };
+        }
 
-        const total = await WindowSubOptions.countDocuments();
+        // Build sort object
+        const sortObject = {};
+        const validSortFields = ['title', 'createdAt', 'updatedAt'];
+        if (validSortFields.includes(sortBy)) {
+            sortObject[sortBy] = sortOrder;
+        } else {
+            sortObject.createdAt = -1; // Default sort
+        }
 
+        // Get total count for pagination metadata
+        const total = await WindowSubOptions.countDocuments(searchQuery);
+
+        // Calculate pagination values
+        const totalPages = limit === 0 ? 1 : Math.ceil(total / limit);
+        const currentPage = Math.min(page, Math.max(1, totalPages));
+        const skip = limit === 0 ? 0 : (currentPage - 1) * limit;
+
+        // Build the query
+        let query = WindowSubOptions.find(searchQuery)
+            .populate('option', 'title') // Only populate title field from option
+            .sort(sortObject);
+
+        // Apply pagination if limit is not 'all'
+        if (limit > 0) {
+            query = query.skip(skip).limit(limit);
+        }
+
+        const options = await query.exec();
+
+        // Calculate range for "Showing X-Y of Z items"
+        const startItem = total === 0 ? 0 : skip + 1;
+        const endItem = limit === 0 ? total : Math.min(skip + limit, total);
+
+        // Enhanced response with comprehensive pagination metadata
         res.json({
-            options,
-            totalPages: Math.ceil(total / limit),
-            currentPage: page
+            data: options, // Changed from 'options' to 'data' for consistency
+            pagination: {
+                currentPage,
+                totalPages,
+                totalItems: total,
+                itemsPerPage: limit === 0 ? total : limit,
+                hasNextPage: currentPage < totalPages,
+                hasPrevPage: currentPage > 1,
+                startItem,
+                endItem
+            },
+            search: {
+                query: search,
+                hasResults: total > 0
+            },
+            sort: {
+                field: sortBy,
+                order: sortOrder === 1 ? 'asc' : 'desc'
+            }
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Error fetching sub-options:', error);
+        res.status(500).json({ 
+            message: 'Failed to fetch sub-options',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
     }
 };
 // Create new window option
@@ -77,15 +137,25 @@ exports.createOption = async (req, res) => {
         });
 
         await newOption.save();
-        res.status(201).json(newOption);
+        
+        // Populate the option field for consistent response
+        await newOption.populate('option', 'title');
+        
+        res.status(201).json({
+            success: true,
+            message: 'Sub-option created successfully',
+            data: newOption
+        });
     } catch (error) {
         console.error('Error creating sub-option:', error);
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ 
+            success: false,
+            message: error.message 
+        });
     }
 };  
 
 // Update window option (partial update) 
-
 
 exports.updateOption = async (req, res) => {
     try {
@@ -118,16 +188,26 @@ exports.updateOption = async (req, res) => {
             id,
             { $set: updates },
             { new: true, runValidators: true }
-        );
+        ).populate('option', 'title');
 
         if (!optionDoc) {
-            return res.status(404).json({ message: 'Option not found' });
+            return res.status(404).json({ 
+                success: false,
+                message: 'Sub-option not found' 
+            });
         }
 
-        res.json(optionDoc);
+        res.json({
+            success: true,
+            message: 'Sub-option updated successfully',
+            data: optionDoc
+        });
     } catch (error) {
         console.error('Error updating sub-option:', error);
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ 
+            success: false,
+            message: error.message 
+        });
     }
 };                                                     
 // Delete window option
@@ -137,12 +217,23 @@ exports.deleteOption = async (req, res) => {
         const option = await WindowSubOptions.findByIdAndDelete(id);
 
         if (!option) {
-            return res.status(404).json({ message: 'Option not found' });
+            return res.status(404).json({ 
+                success: false,
+                message: 'Sub-option not found' 
+            });
         }
 
-        res.json({ message: 'Option deleted successfully' });
+        res.json({ 
+            success: true,
+            message: 'Sub-option deleted successfully',
+            deletedId: id
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Error deleting sub-option:', error);
+        res.status(500).json({ 
+            success: false,
+            message: error.message 
+        });
     }
 };  
 
@@ -153,4 +244,54 @@ exports.getPredefinedOptions = async (req, res) => {
         "Fixed Windows", "Bathroom Ventilators", "Combination Windows", "Special Architectural Windows"
     ];
     res.json(predefinedOptions);
+};
+
+// Search sub-options with advanced filtering
+exports.searchOptions = async (req, res) => {
+    try {
+        const { query, optionId, page = 1, limit = 12 } = req.query;
+        
+        // Build search criteria
+        let searchCriteria = {};
+        
+        if (query && query.trim()) {
+            searchCriteria.$or = [
+                { title: { $regex: query.trim(), $options: 'i' } },
+                { features: { $elemMatch: { $regex: query.trim(), $options: 'i' } } }
+            ];
+        }
+        
+        if (optionId) {
+            searchCriteria.option = optionId;
+        }
+        
+        const pageNum = Math.max(1, parseInt(page));
+        const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+        const skip = (pageNum - 1) * limitNum;
+        
+        const total = await WindowSubOptions.countDocuments(searchCriteria);
+        const results = await WindowSubOptions.find(searchCriteria)
+            .populate('option', 'title')
+            .skip(skip)
+            .limit(limitNum)
+            .sort({ createdAt: -1 });
+        
+        res.json({
+            data: results,
+            pagination: {
+                currentPage: pageNum,
+                totalPages: Math.ceil(total / limitNum),
+                totalItems: total,
+                itemsPerPage: limitNum
+            },
+            searchQuery: query || '',
+            filterBy: optionId || null
+        });
+    } catch (error) {
+        console.error('Error searching sub-options:', error);
+        res.status(500).json({ 
+            message: 'Search failed',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
+    }
 };

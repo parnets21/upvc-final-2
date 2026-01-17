@@ -25,16 +25,17 @@ async function transcodeVideo(inputPath, outputPath) {
     }
 
     // FFmpeg command to transcode to 720p H.264 baseline profile (mobile-compatible)
-    // -vf scale=1280:720: force 720p resolution
+    // -vf scale=1280:720: force 720p resolution with proper aspect ratio handling
     // -c:v libx264: use H.264 codec
-    // -profile:v baseline: use baseline profile (most compatible)
-    // -level 3.0: H.264 level 3.0 (widely supported)
+    // -profile:v baseline: use baseline profile (most compatible with mobile devices)
+    // -level 3.1: H.264 level 3.1 (widely supported, better than 3.0 for 720p)
     // -preset medium: balance between speed and compression
     // -crf 23: quality setting (lower = better quality, 23 is good balance)
     // -c:a aac: use AAC audio codec
     // -b:a 128k: audio bitrate
-    // -movflags +faststart: optimize for streaming
-    const ffmpegCommand = `ffmpeg -i "${inputPath}" -vf scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2 -c:v libx264 -profile:v baseline -level 3.0 -preset medium -crf 23 -c:a aac -b:a 128k -movflags +faststart -y "${outputPath}"`;
+    // -movflags +faststart: optimize for streaming (moves metadata to beginning)
+    // -pix_fmt yuv420p: ensure compatible pixel format for mobile devices
+    const ffmpegCommand = `ffmpeg -i "${inputPath}" -vf scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2 -c:v libx264 -profile:v baseline -level 3.1 -preset medium -crf 23 -c:a aac -b:a 128k -movflags +faststart -pix_fmt yuv420p -y "${outputPath}"`;
 
     console.log('[VideoTranscoder] Starting transcoding...');
     console.log('[VideoTranscoder] Input:', inputPath);

@@ -19,6 +19,7 @@ const handleUploadErrors = (err, req, res, next) => {
 };
 
 router.get('/', windowOptionsController.getAllOptions);
+router.get('/search', windowOptionsController.searchOptions);
 router.use(authenticateAdmin);
 // Admin protected routes
 // Use multer for video uploads - single file with field name 'video'

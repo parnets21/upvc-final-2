@@ -4,7 +4,9 @@ const SubCategory = require("../../models/Admin/SubCategory");
 exports.createCategory = async (req, res) => {
   try {
     console.log("Create category - req.body:", req.body);
-    const { name, description } = req.body || {};
+    console.log("Create category - req.files:", req.files);
+    
+    const { name, description, videosCount } = req.body || {};
 
     if (!name || !name.trim()) {
       return res.status(400).json({
@@ -32,6 +34,51 @@ exports.createCategory = async (req, res) => {
     // Only add description if it's not empty
     if (description && description.trim()) {
       categoryData.description = description.trim();
+    }
+
+    // Process videos array from FormData
+    const count = parseInt(videosCount) || 0;
+    if (count > 0 && req.files) {
+      const videos = [];
+      
+      for (let i = 0; i < count; i++) {
+        const videoItem = {};
+        
+        // Find video file
+        const videoFile = req.files.find(f => f.fieldname === `video_${i}`);
+        if (videoFile) {
+          videoItem.videoUrl = videoFile.path.replace(/\\/g, '/');
+        } else if (req.body[`videoUrl_${i}`]) {
+          videoItem.videoUrl = req.body[`videoUrl_${i}`];
+        }
+        
+        // Find sponsor logo file
+        const sponsorLogoFile = req.files.find(f => f.fieldname === `sponsorLogo_${i}`);
+        if (sponsorLogoFile) {
+          videoItem.sponsorLogo = sponsorLogoFile.path.replace(/\\/g, '/');
+        } else if (req.body[`sponsorLogoUrl_${i}`]) {
+          videoItem.sponsorLogo = req.body[`sponsorLogoUrl_${i}`];
+        }
+        
+        // Get sponsor text
+        if (req.body[`sponsorText_${i}`]) {
+          videoItem.sponsorText = req.body[`sponsorText_${i}`];
+        }
+        
+        // Get order field (use provided order or default to index)
+        videoItem.order = req.body[`order_${i}`] !== undefined 
+          ? parseInt(req.body[`order_${i}`]) 
+          : i;
+        
+        // Only add if we have at least a video URL
+        if (videoItem.videoUrl) {
+          videos.push(videoItem);
+        }
+      }
+      
+      if (videos.length > 0) {
+        categoryData.videos = videos;
+      }
     }
     
     console.log("Creating category with data:", categoryData);
@@ -85,7 +132,9 @@ exports.updateCategory = async (req, res) => {
   try {
     console.log("Update category - req.body:", req.body);
     console.log("Update category - req.params:", req.params);
-    const { name, description } = req.body || {};
+    console.log("Update category - req.files:", req.files);
+    
+    const { name, description, videosCount } = req.body || {};
     const { id } = req.params;
 
     if (!name || !name.trim()) {
@@ -117,6 +166,52 @@ exports.updateCategory = async (req, res) => {
     // Only add description if it's not empty
     if (description && description.trim()) {
       updateData.description = description.trim();
+    }
+
+    // Process videos array from FormData
+    const count = parseInt(videosCount) || 0;
+    if (count > 0) {
+      const videos = [];
+      
+      for (let i = 0; i < count; i++) {
+        const videoItem = {};
+        
+        // Find video file
+        const videoFile = req.files?.find(f => f.fieldname === `video_${i}`);
+        if (videoFile) {
+          videoItem.videoUrl = videoFile.path.replace(/\\/g, '/');
+        } else if (req.body[`videoUrl_${i}`]) {
+          videoItem.videoUrl = req.body[`videoUrl_${i}`];
+        }
+        
+        // Find sponsor logo file
+        const sponsorLogoFile = req.files?.find(f => f.fieldname === `sponsorLogo_${i}`);
+        if (sponsorLogoFile) {
+          videoItem.sponsorLogo = sponsorLogoFile.path.replace(/\\/g, '/');
+        } else if (req.body[`sponsorLogoUrl_${i}`]) {
+          videoItem.sponsorLogo = req.body[`sponsorLogoUrl_${i}`];
+        }
+        
+        // Get sponsor text
+        if (req.body[`sponsorText_${i}`]) {
+          videoItem.sponsorText = req.body[`sponsorText_${i}`];
+        }
+        
+        // Get order field (use provided order or default to index)
+        videoItem.order = req.body[`order_${i}`] !== undefined 
+          ? parseInt(req.body[`order_${i}`]) 
+          : i;
+        
+        // Only add if we have at least a video URL
+        if (videoItem.videoUrl) {
+          videos.push(videoItem);
+        }
+      }
+      
+      updateData.videos = videos;
+    } else {
+      // If no videos provided, clear the videos array
+      updateData.videos = [];
     }
 
     const updated = await Category.findByIdAndUpdate(

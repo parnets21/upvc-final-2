@@ -1,4 +1,6 @@
 const { VideoPrice, PriceHeading } = require('../../models/Admin/pricingModels');
+const { validateFileType } = require('../../utils/fileHelper');
+const { transcodeVideoIfNeeded } = require('../../utils/videoTranscoder');
 
 // Utility function to normalize file paths
 const normalizeFilePath = (filePath) => {
@@ -11,20 +13,16 @@ const normalizeFilePath = (filePath) => {
   normalized = normalized.replace(/\/+/g, '/');
   
   // If it's an absolute path, extract the relative path from 'uploads' directory
-  // e.g., 'uploads/video/filename.mp4' or 'D:/path/uploads/video/filename.mp4' -> '/uploads/video/filename.mp4'
+  // e.g., 'uploads/video/filename.mp4' or 'D:/path/uploads/video/filename.mp4' -> 'uploads/video/filename.mp4'
   const uploadsIndex = normalized.indexOf('uploads/');
   if (uploadsIndex !== -1) {
     normalized = normalized.substring(uploadsIndex);
-  } else if (!normalized.startsWith('/uploads/')) {
+  } else if (!normalized.startsWith('uploads/')) {
     // If path doesn't contain 'uploads/', assume it's relative to uploads
-    normalized = '/uploads/' + normalized.replace(/^\//, '');
+    normalized = 'uploads/' + normalized.replace(/^\//, '');
   }
   
-  // Ensure it starts with a forward slash
-  if (!normalized.startsWith('/')) {
-    normalized = '/' + normalized;
-  }
-  
+  // DO NOT add leading slash - let the frontend handle the base URL
   return normalized;
 };
 
@@ -68,12 +66,44 @@ exports.createVideoPrice = async (req, res) => {
       mimetype: file.mimetype
     });
 
-    const videoPath = normalizeFilePath(file.path);
-    console.log('Normalized video path:', videoPath);
+    // Validate video file format
+    const validation = validateFileType(file, 'video');
+    if (!validation.valid) {
+      console.error('Video validation failed:', validation.error);
+      return res.status(400).json({ error: validation.error });
+    }
+
+    // Transcode video for mobile compatibility if needed
+    let finalVideoPath = file.path;
+    const transcodedPath = file.path.replace(/\.(mp4|mov)$/i, '_mobile.mp4');
+    
+    try {
+      console.log('Transcoding video for mobile compatibility...');
+      const transcodeResult = await transcodeVideoIfNeeded(file.path, transcodedPath);
+      
+      if (transcodeResult.success && transcodeResult.transcoded) {
+        finalVideoPath = transcodeResult.outputPath;
+        console.log('Video transcoded successfully:', finalVideoPath);
+      } else if (!transcodeResult.success) {
+        console.warn('Transcoding failed, using original file:', transcodeResult.error);
+        // Continue with original file if transcoding fails
+      }
+    } catch (transcodeError) {
+      console.warn('Transcoding error, using original file:', transcodeError.message);
+      // Continue with original file if transcoding fails
+    }
+
+    const videoPath = normalizeFilePath(finalVideoPath);
+    console.log('Final video path:', videoPath);
     
     // Handle sponsor logo if present
     let sponsorLogoPath = null;
     if (req.files && req.files.sponsorLogo && req.files.sponsorLogo[0]) {
+      // Validate sponsor logo
+      const logoValidation = validateFileType(req.files.sponsorLogo[0], 'image');
+      if (!logoValidation.valid) {
+        return res.status(400).json({ error: `Sponsor logo: ${logoValidation.error}` });
+      }
       sponsorLogoPath = normalizeFilePath(req.files.sponsorLogo[0].path);
       console.log('Sponsor logo path:', sponsorLogoPath);
     }
@@ -149,10 +179,42 @@ exports.updateVideoPrice = async (req, res) => {
       description: description || '', // Ensure description is always a string
       sponsorText: sponsorText || ''
     };
-    if (file) updatedData.video = normalizeFilePath(file.path);
-    if (req.files?.sponsorLogo?.[0]) { 
-      updatedData.sponsorLogo = req.files.sponsorLogo[0].path;
+    
+    if (file) {
+      // Validate video file format
+      const validation = validateFileType(file, 'video');
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.error });
+      }
+
+      // Transcode video for mobile compatibility if needed
+      let finalVideoPath = file.path;
+      const transcodedPath = file.path.replace(/\.(mp4|mov)$/i, '_mobile.mp4');
+      
+      try {
+        console.log('Transcoding video for mobile compatibility...');
+        const transcodeResult = await transcodeVideoIfNeeded(file.path, transcodedPath);
+        
+        if (transcodeResult.success && transcodeResult.transcoded) {
+          finalVideoPath = transcodeResult.outputPath;
+          console.log('Video transcoded successfully:', finalVideoPath);
+        }
+      } catch (transcodeError) {
+        console.warn('Transcoding error, using original file:', transcodeError.message);
+      }
+
+      updatedData.video = normalizeFilePath(finalVideoPath);
     }
+    
+    if (req.files?.sponsorLogo?.[0]) { 
+      // Validate sponsor logo
+      const logoValidation = validateFileType(req.files.sponsorLogo[0], 'image');
+      if (!logoValidation.valid) {
+        return res.status(400).json({ error: `Sponsor logo: ${logoValidation.error}` });
+      }
+      updatedData.sponsorLogo = normalizeFilePath(req.files.sponsorLogo[0].path);
+    }
+    
     const updated = await VideoPrice.findByIdAndUpdate(req.params.id, updatedData, { new: true });
 
     if (!updated) return res.status(404).json({ error: 'Video not found' });

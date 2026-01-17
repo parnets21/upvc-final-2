@@ -92,6 +92,7 @@ app.use('/api/color' , require('./routes/Buyer/colorRoutes'));
 app.use('/api/options',require('./routes/Admin/optionRoutes'));
 app.use('/api/sub-options',require('./routes/Admin/subOptionsRoutes'));
 app.use('/api/contact', require('./routes/Buyer/contactRoutes')); 
+app.use('/api/buyer/advertisements', require('./routes/Buyer/advertisementRoutes')); 
 app.use('/api/advertisments', require('./routes/Admin/advertisement')); 
 app.use('/api/buyer/advertisments', require('./routes/Admin/buyerAdvertisement')); 
 

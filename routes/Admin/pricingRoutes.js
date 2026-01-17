@@ -8,13 +8,19 @@ const {
 } = require('../../controllers/Admin/pricingController');
 
 router.post('/video', 
-  // accept any file fields to be resilient to client naming
-  upload('video').any(),
+  // Use strict video validation for pricing videos
+  upload.pricingVideo().fields([
+    { name: 'video', maxCount: 1 },
+    { name: 'sponsorLogo', maxCount: 1 }
+  ]),
   createVideoPrice);
 router.get('/video', getAllVideoPrices);
 router.get('/video/:id', getVideoPriceById);
 router.put('/video/:id', 
-  upload('video').any(),
+  upload.pricingVideo().fields([
+    { name: 'video', maxCount: 1 },
+    { name: 'sponsorLogo', maxCount: 1 }
+  ]),
   updateVideoPrice);
 router.delete('/video/:id', deleteVideoPrice);
 router.post('/heading', upload('heading', ['image/*']).single('image'), createPriceHeading);

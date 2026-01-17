@@ -27,6 +27,10 @@ const buyerAdvertisementSchema = new mongoose.Schema({
   sponsorLogo: {
     type: String
   },
+  defaultMuted: {
+    type: Boolean,
+    default: true
+  },
   likes: {
     type: Number,
     default: 0

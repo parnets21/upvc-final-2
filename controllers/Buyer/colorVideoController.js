@@ -2,11 +2,28 @@ const fs = require('fs');
 const path = require('path');
 
 const ColorVideo = require('../../models/Buyer/ColorVideo');
-// Utility function to normalize file paths
-const normalizeFilePath = (path) => {
-  if (!path) return '';
-  // Replace backslashes with forward slashes and remove redundant slashes
-  return path.replace(/\\/g, '/').replace(/\/+/g, '/');
+
+// Utility function to normalize file paths (same as pricing controller)
+const normalizeFilePath = (filePath) => {
+  if (!filePath) return '';
+  
+  // Replace backslashes with forward slashes
+  let normalized = filePath.replace(/\\/g, '/');
+  
+  // Remove redundant slashes
+  normalized = normalized.replace(/\/+/g, '/');
+  
+  // If it's an absolute path, extract the relative path from 'uploads' directory
+  const uploadsIndex = normalized.indexOf('uploads/');
+  if (uploadsIndex !== -1) {
+    normalized = normalized.substring(uploadsIndex);
+  } else if (!normalized.startsWith('uploads/')) {
+    // If path doesn't contain 'uploads/', assume it's relative to uploads
+    normalized = 'uploads/' + normalized.replace(/^\//, '');
+  }
+  
+  // DO NOT add leading slash - let the frontend handle the base URL
+  return normalized;
 };
 // CREATE
 const createColorVideo = async (req, res) => {
@@ -18,6 +35,7 @@ const createColorVideo = async (req, res) => {
     if (!file) return res.status(400).json({ error: 'Video file is required' });
 
     const normalizedPath = normalizeFilePath(file.path);
+    const sponsorLogoPath = req.files?.sponsorLogo?.[0] ? normalizeFilePath(req.files.sponsorLogo[0].path) : null;
 
     const newVideo = new ColorVideo({
       title,
@@ -27,12 +45,21 @@ const createColorVideo = async (req, res) => {
       filepath: normalizedPath,
       mimetype: file.mimetype,
       filesize: file.size,
-      sponsorLogo: req.files?.sponsorLogo?.[0]?.path,
+      sponsorLogo: sponsorLogoPath,
       sponsorText: req.body.sponsorText
     });
 
     await newVideo.save();
-    res.status(201).json({ message: 'Uploaded successfully', data: newVideo });
+    
+    // Return normalized response
+    const responseVideo = {
+      ...newVideo._doc,
+      src: normalizedPath,
+      filepath: normalizedPath,
+      sponsorLogo: sponsorLogoPath
+    };
+    
+    res.status(201).json({ message: 'Uploaded successfully', data: responseVideo });
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -42,7 +69,14 @@ const createColorVideo = async (req, res) => {
 const getAllColorVideos = async (req, res) => {
   try {
     const videos = await ColorVideo.find().sort({ createdAt: -1 });
-    res.status(200).json(videos);
+    // Normalize video paths in response
+    const normalizedVideos = videos.map(video => ({
+      ...video._doc,
+      src: normalizeFilePath(video.src),
+      filepath: normalizeFilePath(video.filepath),
+      sponsorLogo: video.sponsorLogo ? normalizeFilePath(video.sponsorLogo) : null
+    }));
+    res.status(200).json(normalizedVideos);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch videos' });
   }
@@ -53,7 +87,15 @@ const getColorVideoById = async (req, res) => {
     const video = await ColorVideo.findById(req.params.id);
     if (!video) return res.status(404).json({ error: 'Video not found' });
 
-    res.status(200).json(video);
+    // Normalize paths in response
+    const normalizedVideo = {
+      ...video._doc,
+      src: normalizeFilePath(video.src),
+      filepath: normalizeFilePath(video.filepath),
+      sponsorLogo: video.sponsorLogo ? normalizeFilePath(video.sponsorLogo) : null
+    };
+
+    res.status(200).json(normalizedVideo);
   } catch (error) {
     console.error('Get by ID error:', error);
     res.status(500).json({ error: 'Internal server error' });

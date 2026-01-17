@@ -8,7 +8,9 @@ const defaultAllowedTypes = ['image/', 'video/', 'application/pdf'];
 
 // Video-specific configuration
 const videoConfig = {
-  allowedTypes: ['video/mp4', 'video/webm', 'video/ogg'],
+  // Only allow mobile-compatible formats
+  allowedTypes: ['video/mp4', 'video/quicktime'],
+  allowedExtensions: ['.mp4', '.mov'],
   // Increase max upload size for videos (1GB)
   maxSize: 1024 * 1024 * 1024,
   destination: 'uploads/sellers/videos'
@@ -33,11 +35,19 @@ const upload = (folder, allowedTypes = defaultAllowedTypes) => {
     });
 
     const fileFilter = (req, file, cb) => {
-      console.log("file.mimetype : " , file.mimetype)
-      if (videoConfig.allowedTypes.includes(file.mimetype)) {
+      console.log("file.mimetype : " , file.mimetype);
+      console.log("file.originalname : " , file.originalname);
+      
+      const fileExt = path.extname(file.originalname).toLowerCase();
+      const isValidMime = videoConfig.allowedTypes.includes(file.mimetype);
+      const isValidExt = videoConfig.allowedExtensions.includes(fileExt);
+      
+      if (isValidMime && isValidExt) {
         cb(null, true);
       } else {
-        cb(new Error(`Only video files are allowed (${videoConfig.allowedTypes.join(', ')})`), false);
+        const error = `Invalid video format. Only MP4 and MOV files are supported for mobile compatibility. Received: ${fileExt} (${file.mimetype})`;
+        console.error(error);
+        cb(new Error(error), false);
       }
     };
 
@@ -93,6 +103,52 @@ const upload = (folder, allowedTypes = defaultAllowedTypes) => {
 // Add direct video upload method to maintain backward compatibility
 upload.video = (fieldName) => {
   return upload('sellers/videos').single(fieldName);
+};
+
+// Add specific method for pricing videos with strict validation
+upload.pricingVideo = () => {
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      const dir = path.join('uploads', 'video');
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+      cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
+    }
+  });
+
+  const fileFilter = (req, file, cb) => {
+    console.log("Pricing video upload - file.mimetype:", file.mimetype);
+    console.log("Pricing video upload - file.originalname:", file.originalname);
+    
+    const fileExt = path.extname(file.originalname).toLowerCase();
+    const isValidMime = videoConfig.allowedTypes.includes(file.mimetype);
+    const isValidExt = videoConfig.allowedExtensions.includes(fileExt);
+    
+    // Reject AVI and other incompatible formats explicitly
+    if (fileExt === '.avi' || file.mimetype.includes('avi')) {
+      const error = 'AVI format is not supported. Please use MP4 format for mobile compatibility.';
+      console.error(error);
+      cb(new Error(error), false);
+      return;
+    }
+    
+    if (isValidMime && isValidExt) {
+      cb(null, true);
+    } else {
+      const error = `Invalid video format for pricing videos. Only MP4 and MOV files are supported. Received: ${fileExt} (${file.mimetype})`;
+      console.error(error);
+      cb(new Error(error), false);
+    }
+  };
+
+  return multer({ 
+    storage, 
+    fileFilter,
+    limits: { fileSize: videoConfig.maxSize }
+  });
 };
 
 module.exports = upload;

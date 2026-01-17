@@ -9,18 +9,28 @@ const {
   verifyUploadedFile,
   safeDeleteMultipleFiles 
 } = require('../../utils/fileHelper');
-
-// Get all advertisements
 exports.getAllAdvertisements = async (req, res) => {
   try {
+    console.log('[GetAllAds] Fetching all buyer advertisements');
     const ads = await Advertisement.find().sort({ createdAt: -1 });
+    console.log('[GetAllAds] Found', ads.length, 'advertisements');
+    ads.forEach((ad, index) => {
+      console.log(`[GetAllAds] Ad ${index + 1}:`, {
+        id: ad._id,
+        title: ad.title,
+        type: ad.type,
+        mediaUrl: ad.mediaUrl,
+        sponsorLogo: ad.sponsorLogo,
+        sponsorText: ad.sponsorText,
+        defaultMuted: ad.defaultMuted
+      });
+    });
     res.status(200).json({ success: true, ads });
   } catch (error) {
+    console.error('[GetAllAds] Error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// Get advertisements by type
 exports.getAdvertisementsByType = async (req, res) => {
   try {
     const { type } = req.params;
@@ -38,13 +48,11 @@ exports.getAdvertisementsByType = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// Create new advertisement
 exports.createAdvertisement = async (req, res) => {
   const uploadedFiles = [];
   
   try {
-    const { title, description, type, category, sponsorText } = req.body;
+    const { title, description, type, category, sponsorText, defaultMuted } = req.body;
     const files = req.files || [];
     
     console.log('[CreateAd] Starting advertisement creation:', { title, type, category });
@@ -142,6 +150,7 @@ exports.createAdvertisement = async (req, res) => {
       thumbnailUrl: thumbnailPath,
       sponsorText: sponsorText || undefined,
       sponsorLogo: sponsorLogoPath,
+      defaultMuted: defaultMuted === 'true' || defaultMuted === true,
       likes,
       isFeatured
     });
@@ -169,15 +178,13 @@ exports.createAdvertisement = async (req, res) => {
     });
   }
 };
-
-// Update advertisement
 exports.updateAdvertisement = async (req, res) => {
   const newUploadedFiles = [];
   const oldFilesToDelete = [];
   
   try {
     const { id } = req.params;
-    const { title, description, isFeatured, category, sponsorText } = req.body;
+    const { title, description, isFeatured, category, sponsorText, defaultMuted } = req.body;
     const files = req.files || [];
     
     console.log('[UpdateAd] Starting advertisement update:', id);
@@ -305,6 +312,10 @@ exports.updateAdvertisement = async (req, res) => {
       ad.sponsorText = sponsorText;
     }
 
+    if (typeof defaultMuted !== 'undefined') {
+      ad.defaultMuted = defaultMuted === 'true' || defaultMuted === true;
+    }
+
     // Save to database
     await ad.save();
     console.log('[UpdateAd] Advertisement updated in database');
@@ -334,8 +345,6 @@ exports.updateAdvertisement = async (req, res) => {
     });
   }
 };
-
-// Delete advertisement
 exports.deleteAdvertisement = async (req, res) => {
   try {
     const { id } = req.params;
@@ -394,8 +403,6 @@ exports.deleteAdvertisement = async (req, res) => {
     });
   }
 };
-
-// Toggle like on advertisement
 exports.toggleLike = async (req, res) => {
   try {
     const { id } = req.params;
@@ -421,8 +428,6 @@ exports.toggleLike = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// Check file integrity for an advertisement
 exports.checkFileIntegrity = async (req, res) => {
   try {
     const { id } = req.params;
