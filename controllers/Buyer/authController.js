@@ -2,6 +2,7 @@ const Lead = require('../../models/Admin/lead');
 const User = require('../../models/Buyer/User');
 const generateOTP = require('../../utils/generateOTP');
 const { signOTPToken } = require('../../utils/jwtHelper');
+const { toAbsoluteUrl } = require('../../utils/urlHelper');
 
 // Register new buyer
 exports.register = async (req, res) => {
@@ -239,30 +240,6 @@ exports.getBuyerLeads = async (req, res) => {
   try {
     const buyerId = req.user._id;
     console.log("Confirmed")
-
-    const toAbsoluteUrl = (url, { ensureLeadingSlash = true } = {}) => {
-      if (!url) return null;
-      if (typeof url !== 'string') url = String(url);
-
-      const ensureSlash = (value) => {
-        if (!value) return ensureLeadingSlash ? '/' : '';
-        return ensureLeadingSlash
-          ? value.startsWith('/') ? value : `/${value}`
-          : value.replace(/^\/+/, '');
-      };
-
-      try {
-        const parsed = new URL(url);
-        const pathname = ensureSlash(parsed.pathname || '/');
-        const search = parsed.search || '';
-        const hash = parsed.hash || '';
-        return `${req.protocol}://${req.get('host')}${pathname}${search}${hash}`;
-      } catch (err) {
-        // Not an absolute URL, treat as relative
-        const normalized = ensureSlash(url);
-        return `${req.protocol}://${req.get('host')}${normalized}`;
-      }
-    };
 
     const leads = await Lead.find({ buyer: buyerId })
       .populate({

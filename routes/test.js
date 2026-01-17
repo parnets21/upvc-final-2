@@ -36,6 +36,43 @@ router.get('/videos', (req, res) => {
   }
 });
 
+// Test categories endpoint
+router.get('/categories', async (req, res) => {
+  try {
+    const Category = require('../models/Admin/Category');
+    const categories = await Category.find().limit(5);
+    
+    const categoriesWithAbsoluteUrls = categories.map(cat => {
+      const categoryObj = cat.toObject();
+      
+      // Fix videoUrl (legacy field) if it exists
+      if (categoryObj.videoUrl) {
+        categoryObj.videoUrl = toAbsoluteUrl(categoryObj.videoUrl);
+      }
+      
+      // Fix videos array URLs
+      if (categoryObj.videos && categoryObj.videos.length > 0) {
+        categoryObj.videos = categoryObj.videos.map(video => ({
+          ...video,
+          videoUrl: toAbsoluteUrl(video.videoUrl),
+          sponsorLogo: video.sponsorLogo ? toAbsoluteUrl(video.sponsorLogo) : null
+        }));
+      }
+      
+      return categoryObj;
+    });
+    
+    res.json({
+      message: 'Category test endpoint',
+      baseUrl: process.env.BASE_URL || 'http://localhost:9000',
+      categoryCount: categoriesWithAbsoluteUrls.length,
+      categories: categoriesWithAbsoluteUrls
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Test a specific video file
 router.get('/video/:filename', (req, res) => {
   try {
