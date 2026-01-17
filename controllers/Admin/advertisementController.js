@@ -9,12 +9,29 @@ const {
   verifyUploadedFile,
   safeDeleteMultipleFiles 
 } = require('../../utils/fileHelper');
+const { toAbsoluteUrl } = require('../../utils/urlHelper');
 
 // Get all advertisements
 exports.getAllAdvertisements = async (req, res) => {
   try {
     const ads = await Advertisement.find().sort({ createdAt: -1 });
-    res.status(200).json({ success: true, ads });
+    
+    // Process URLs through URL helper to ensure clean URLs
+    const processedAds = ads.map(ad => {
+      const adObj = ad.toObject();
+      if (adObj.mediaUrl) {
+        adObj.mediaUrl = toAbsoluteUrl(adObj.mediaUrl);
+      }
+      if (adObj.thumbnailUrl) {
+        adObj.thumbnailUrl = toAbsoluteUrl(adObj.thumbnailUrl);
+      }
+      if (adObj.sponsorLogo) {
+        adObj.sponsorLogo = toAbsoluteUrl(adObj.sponsorLogo);
+      }
+      return adObj;
+    });
+    
+    res.status(200).json({ success: true, ads: processedAds });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -33,7 +50,23 @@ exports.getAdvertisementsByType = async (req, res) => {
     }
     
     const ads = await Advertisement.find(query).sort({ createdAt: -1 });
-    res.status(200).json({ success: true, ads });
+    
+    // Process URLs through URL helper to ensure clean URLs
+    const processedAds = ads.map(ad => {
+      const adObj = ad.toObject();
+      if (adObj.mediaUrl) {
+        adObj.mediaUrl = toAbsoluteUrl(adObj.mediaUrl);
+      }
+      if (adObj.thumbnailUrl) {
+        adObj.thumbnailUrl = toAbsoluteUrl(adObj.thumbnailUrl);
+      }
+      if (adObj.sponsorLogo) {
+        adObj.sponsorLogo = toAbsoluteUrl(adObj.sponsorLogo);
+      }
+      return adObj;
+    });
+    
+    res.status(200).json({ success: true, ads: processedAds });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -140,7 +173,19 @@ exports.createAdvertisement = async (req, res) => {
     await newAd.save();
     console.log('[CreateSellerAd] Advertisement saved to database:', newAd._id);
     
-    res.status(201).json({ success: true, advertisement: newAd });
+    // Process URLs through URL helper to ensure clean URLs in response
+    const responseData = newAd.toObject();
+    if (responseData.mediaUrl) {
+      responseData.mediaUrl = toAbsoluteUrl(responseData.mediaUrl);
+    }
+    if (responseData.thumbnailUrl) {
+      responseData.thumbnailUrl = toAbsoluteUrl(responseData.thumbnailUrl);
+    }
+    if (responseData.sponsorLogo) {
+      responseData.sponsorLogo = toAbsoluteUrl(responseData.sponsorLogo);
+    }
+    
+    res.status(201).json({ success: true, advertisement: responseData });
     
   } catch (error) {
     console.error('[CreateSellerAd] Error creating advertisement:', error.message);
@@ -284,12 +329,24 @@ exports.updateAdvertisement = async (req, res) => {
     await ad.save();
     console.log('[UpdateSellerAd] Advertisement updated in database');
     
+    // Process URLs through URL helper to ensure clean URLs in response
+    const responseData = ad.toObject();
+    if (responseData.mediaUrl) {
+      responseData.mediaUrl = toAbsoluteUrl(responseData.mediaUrl);
+    }
+    if (responseData.thumbnailUrl) {
+      responseData.thumbnailUrl = toAbsoluteUrl(responseData.thumbnailUrl);
+    }
+    if (responseData.sponsorLogo) {
+      responseData.sponsorLogo = toAbsoluteUrl(responseData.sponsorLogo);
+    }
+    
     if (oldFilesToDelete.length > 0) {
       console.log('[UpdateSellerAd] Deleting old files:', oldFilesToDelete);
       safeDeleteMultipleFiles(oldFilesToDelete);
     }
     
-    res.status(200).json({ success: true, advertisement: ad });
+    res.status(200).json({ success: true, advertisement: responseData });
     
   } catch (error) {
     console.error('[UpdateSellerAd] Error updating advertisement:', error.message);

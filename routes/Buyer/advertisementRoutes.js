@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Advertisement = require('../../models/Admin/buyerAdvertisement');
+const { toAbsoluteUrl } = require('../../utils/urlHelper');
 
 // Get all buyer advertisements for mobile app
 router.get('/', async (req, res) => {
@@ -8,7 +9,20 @@ router.get('/', async (req, res) => {
     console.log('[MobileAPI] Fetching buyer advertisements for mobile');
     const ads = await Advertisement.find().sort({ createdAt: -1 });
     console.log('[MobileAPI] Found', ads.length, 'advertisements');
-    ads.forEach((ad, index) => {
+    
+    // Process URLs through URL helper to ensure clean URLs
+    const processedAds = ads.map(ad => {
+      const adObj = ad.toObject();
+      if (adObj.mediaUrl) {
+        adObj.mediaUrl = toAbsoluteUrl(adObj.mediaUrl);
+      }
+      if (adObj.sponsorLogo) {
+        adObj.sponsorLogo = toAbsoluteUrl(adObj.sponsorLogo);
+      }
+      return adObj;
+    });
+    
+    processedAds.forEach((ad, index) => {
       console.log(`[MobileAPI] Ad ${index + 1}:`, {
         id: ad._id,
         title: ad.title,
@@ -19,7 +33,7 @@ router.get('/', async (req, res) => {
         defaultMuted: ad.defaultMuted
       });
     });
-    res.status(200).json({ success: true, advertisements: ads });
+    res.status(200).json({ success: true, advertisements: processedAds });
   } catch (error) {
     console.error('[MobileAPI] Error fetching buyer advertisements:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -39,7 +53,20 @@ router.get('/:type', async (req, res) => {
     }
     
     const ads = await Advertisement.find(query).sort({ createdAt: -1 });
-    res.status(200).json({ success: true, advertisements: ads });
+    
+    // Process URLs through URL helper to ensure clean URLs
+    const processedAds = ads.map(ad => {
+      const adObj = ad.toObject();
+      if (adObj.mediaUrl) {
+        adObj.mediaUrl = toAbsoluteUrl(adObj.mediaUrl);
+      }
+      if (adObj.sponsorLogo) {
+        adObj.sponsorLogo = toAbsoluteUrl(adObj.sponsorLogo);
+      }
+      return adObj;
+    });
+    
+    res.status(200).json({ success: true, advertisements: processedAds });
   } catch (error) {
     console.error('Error fetching buyer advertisements by type:', error);
     res.status(500).json({ success: false, message: error.message });
