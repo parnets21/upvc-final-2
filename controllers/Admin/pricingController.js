@@ -1,30 +1,12 @@
 const { VideoPrice, PriceHeading } = require('../../models/Admin/pricingModels');
 const { validateFileType } = require('../../utils/fileHelper');
 const { transcodeVideoIfNeeded } = require('../../utils/videoTranscoder');
+const { toAbsoluteUrl, normalizeFilePath } = require('../../utils/urlHelper');
 
-// Utility function to normalize file paths
-const normalizeFilePath = (filePath) => {
-  if (!filePath) return '';
-  
-  // Replace backslashes with forward slashes
-  let normalized = filePath.replace(/\\/g, '/');
-  
-  // Remove redundant slashes
-  normalized = normalized.replace(/\/+/g, '/');
-  
-  // If it's an absolute path, extract the relative path from 'uploads' directory
-  // e.g., 'uploads/video/filename.mp4' or 'D:/path/uploads/video/filename.mp4' -> 'uploads/video/filename.mp4'
-  const uploadsIndex = normalized.indexOf('uploads/');
-  if (uploadsIndex !== -1) {
-    normalized = normalized.substring(uploadsIndex);
-  } else if (!normalized.startsWith('uploads/')) {
-    // If path doesn't contain 'uploads/', assume it's relative to uploads
-    normalized = 'uploads/' + normalized.replace(/^\//, '');
-  }
-  
-  // DO NOT add leading slash - let the frontend handle the base URL
-  return normalized;
-};
+// Utility function to normalize file paths - now using centralized helper
+// const normalizeFilePath = (filePath) => {
+//   // This function is now imported from utils/urlHelper.js
+// };
 
 exports.createVideoPrice = async (req, res) => {
   try {
@@ -134,12 +116,13 @@ exports.createVideoPrice = async (req, res) => {
 exports.getAllVideoPrices = async (req, res) => {
   try {
     const videos = await VideoPrice.find().sort({ createdAt: -1 });
-    // Normalize video paths in response
-    const normalizedVideos = videos.map(video => ({
+    // Return videos with absolute URLs
+    const videosWithAbsoluteUrls = videos.map(video => ({
       ...video._doc,
-      video: normalizeFilePath(video.video)
+      video: toAbsoluteUrl(video.video),
+      sponsorLogo: video.sponsorLogo ? toAbsoluteUrl(video.sponsorLogo) : null
     }));
-    res.json(normalizedVideos);
+    res.json(videosWithAbsoluteUrls);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -149,10 +132,11 @@ exports.getVideoPriceById = async (req, res) => {
   try {
     const video = await VideoPrice.findById(req.params.id);
     if (!video) return res.status(404).json({ error: 'Video not found' });
-    // Normalize video path in response
+    // Return video with absolute URLs
     res.json({
       ...video._doc,
-      video: normalizeFilePath(video.video)
+      video: toAbsoluteUrl(video.video),
+      sponsorLogo: video.sponsorLogo ? toAbsoluteUrl(video.sponsorLogo) : null
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

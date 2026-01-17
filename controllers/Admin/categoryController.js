@@ -1,5 +1,6 @@
 const Category = require("../../models/Admin/Category");
 const SubCategory = require("../../models/Admin/SubCategory");
+const { toAbsoluteUrl, normalizeFilePath } = require('../../utils/urlHelper');
 
 exports.createCategory = async (req, res) => {
   try {
@@ -47,17 +48,17 @@ exports.createCategory = async (req, res) => {
         // Find video file
         const videoFile = req.files.find(f => f.fieldname === `video_${i}`);
         if (videoFile) {
-          videoItem.videoUrl = videoFile.path.replace(/\\/g, '/');
+          videoItem.videoUrl = normalizeFilePath(videoFile.path);
         } else if (req.body[`videoUrl_${i}`]) {
-          videoItem.videoUrl = req.body[`videoUrl_${i}`];
+          videoItem.videoUrl = normalizeFilePath(req.body[`videoUrl_${i}`]);
         }
         
         // Find sponsor logo file
         const sponsorLogoFile = req.files.find(f => f.fieldname === `sponsorLogo_${i}`);
         if (sponsorLogoFile) {
-          videoItem.sponsorLogo = sponsorLogoFile.path.replace(/\\/g, '/');
+          videoItem.sponsorLogo = normalizeFilePath(sponsorLogoFile.path);
         } else if (req.body[`sponsorLogoUrl_${i}`]) {
-          videoItem.sponsorLogo = req.body[`sponsorLogoUrl_${i}`];
+          videoItem.sponsorLogo = normalizeFilePath(req.body[`sponsorLogoUrl_${i}`]);
         }
         
         // Get sponsor text
@@ -115,7 +116,34 @@ exports.getAllCategories = async (req, res) => {
         const subcategories = await SubCategory.find({
           parentCategory: cat._id,
         });
-        return { ...cat.toObject(), subcategories };
+        
+        // Convert category to object and fix video URLs
+        const categoryObj = cat.toObject();
+        
+        // Fix videoUrl (legacy field) if it exists
+        if (categoryObj.videoUrl) {
+          categoryObj.videoUrl = toAbsoluteUrl(categoryObj.videoUrl);
+        }
+        
+        // Fix videos array URLs
+        if (categoryObj.videos && categoryObj.videos.length > 0) {
+          categoryObj.videos = categoryObj.videos.map(video => ({
+            ...video,
+            videoUrl: toAbsoluteUrl(video.videoUrl),
+            sponsorLogo: video.sponsorLogo ? toAbsoluteUrl(video.sponsorLogo) : null
+          }));
+        }
+        
+        // Fix subcategory video URLs
+        const subcategoriesWithAbsoluteUrls = subcategories.map(sub => {
+          const subObj = sub.toObject();
+          if (subObj.videoUrl) {
+            subObj.videoUrl = toAbsoluteUrl(subObj.videoUrl);
+          }
+          return subObj;
+        });
+        
+        return { ...categoryObj, subcategories: subcategoriesWithAbsoluteUrls };
       })
     );
     res.json(populated);
@@ -179,17 +207,17 @@ exports.updateCategory = async (req, res) => {
         // Find video file
         const videoFile = req.files?.find(f => f.fieldname === `video_${i}`);
         if (videoFile) {
-          videoItem.videoUrl = videoFile.path.replace(/\\/g, '/');
+          videoItem.videoUrl = normalizeFilePath(videoFile.path);
         } else if (req.body[`videoUrl_${i}`]) {
-          videoItem.videoUrl = req.body[`videoUrl_${i}`];
+          videoItem.videoUrl = normalizeFilePath(req.body[`videoUrl_${i}`]);
         }
         
         // Find sponsor logo file
         const sponsorLogoFile = req.files?.find(f => f.fieldname === `sponsorLogo_${i}`);
         if (sponsorLogoFile) {
-          videoItem.sponsorLogo = sponsorLogoFile.path.replace(/\\/g, '/');
+          videoItem.sponsorLogo = normalizeFilePath(sponsorLogoFile.path);
         } else if (req.body[`sponsorLogoUrl_${i}`]) {
-          videoItem.sponsorLogo = req.body[`sponsorLogoUrl_${i}`];
+          videoItem.sponsorLogo = normalizeFilePath(req.body[`sponsorLogoUrl_${i}`]);
         }
         
         // Get sponsor text

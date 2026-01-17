@@ -12,10 +12,7 @@ const app = express();
 
 // CORS configuration - allow specific origins
 const allowedOrigins = [
-  'https://upvc-admin-panel.netlify.app',
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:8081',
+  'https://upvcconnect.com'
   // Add more origins as needed
 ];
 
@@ -69,11 +66,19 @@ app.use(express.urlencoded({ extended: true, limit: '1gb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res, filePath) => {
     // Enable range requests for video files
-    if (filePath.endsWith('.mp4') || filePath.endsWith('.webm') || filePath.endsWith('.ogg')) {
+    if (filePath.endsWith('.mp4') || filePath.endsWith('.webm') || filePath.endsWith('.ogg') || filePath.endsWith('.mov')) {
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Content-Type', 'video/mp4');
+      // Add cache headers for better performance
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
     }
-  }
+    // Add CORS headers for all files
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Range');
+  },
+  // Enable directory indexing for debugging (remove in production)
+  index: false
 }));
  
 app.use((req, res, next) => {
@@ -105,6 +110,9 @@ app.use('/api/admin', require('./routes/Admin/buyerManagement'));
 
 app.use('/api/sellers', require('./routes/Seller/sellerRoutes')); 
 app.use('/api/quotes', require('./routes/Buyer/quoteRoutes'));
+
+// Test routes for debugging (remove in production)
+app.use('/test', require('./routes/test'));
 
 // Serve static files from the 'build' directory (CSS, JS, images, etc.)
 app.use(express.static(path.join(__dirname, 'build')));

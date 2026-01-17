@@ -1,4 +1,5 @@
 const SubCategory = require("../../models/Admin/SubCategory");
+const { toAbsoluteUrl, normalizeFilePath } = require('../../utils/urlHelper');
 
 exports.createSubCategory = async (req, res) => {
   try {
@@ -11,8 +12,8 @@ exports.createSubCategory = async (req, res) => {
     const file = req.file; // optional
 
     const finalVideoUrl = file
-      ? `/uploads/sellers/videos/${file.filename}`
-      : videoUrl;
+      ? normalizeFilePath(`uploads/sellers/videos/${file.filename}`)
+      : normalizeFilePath(videoUrl);
 
     const sub = await SubCategory.create({
       name,
@@ -50,8 +51,18 @@ exports.getAllSubCategories = async (req, res) => {
     // Otherwise return all (mobile app)
     
     const subs = await query;
-    console.log(`Returning ${subs.length} subcategories`);
-    res.json(subs);
+    
+    // Convert video URLs to absolute URLs
+    const subsWithAbsoluteUrls = subs.map(sub => {
+      const subObj = sub.toObject();
+      if (subObj.videoUrl) {
+        subObj.videoUrl = toAbsoluteUrl(subObj.videoUrl);
+      }
+      return subObj;
+    });
+    
+    console.log(`Returning ${subsWithAbsoluteUrls.length} subcategories`);
+    res.json(subsWithAbsoluteUrls);
   } catch (error) {
     console.error('Error fetching subcategories:', error);
     res.status(500).json({ message: error.message });
@@ -62,14 +73,23 @@ exports.updateSubCategory = async (req, res) => {
   try {
     const updates = { ...(req.body || {}) };
     if (req.file) {
-      updates.videoUrl = `/uploads/sellers/videos/${req.file.filename}`;
+      updates.videoUrl = normalizeFilePath(`uploads/sellers/videos/${req.file.filename}`);
+    } else if (updates.videoUrl) {
+      updates.videoUrl = normalizeFilePath(updates.videoUrl);
     }
     const updated = await SubCategory.findByIdAndUpdate(
       req.params.id,
       { $set: updates },
       { new: true }
     );
-    res.json(updated);
+    
+    // Convert to object and fix video URL for response
+    const updatedObj = updated.toObject();
+    if (updatedObj.videoUrl) {
+      updatedObj.videoUrl = toAbsoluteUrl(updatedObj.videoUrl);
+    }
+    
+    res.json(updatedObj);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
