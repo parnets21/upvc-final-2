@@ -1,11 +1,6 @@
 const WindowOption = require('../../models/Admin/WindowOption');
 const WindowSubOptions = require('../../models/Admin/WindowSubOptions');
-
-// Normalize file path (convert backslashes to forward slashes)
-const normalizeFilePath = (filePath) => {
-  if (!filePath) return null;
-  return filePath.replace(/\\/g, '/');
-};
+const { toAbsoluteUrl, normalizeFilePath } = require('../../utils/urlHelper');
 
 // Get all window options with enhanced pagination, search, and sorting
 
@@ -58,13 +53,22 @@ exports.getAllOptions = async (req, res) => {
 
         const options = await query.exec();
 
+        // Process URLs through URL helper to ensure clean URLs
+        const processedOptions = options.map(option => {
+            const optionObj = option.toObject();
+            if (optionObj.videoUrl) {
+                optionObj.videoUrl = toAbsoluteUrl(optionObj.videoUrl);
+            }
+            return optionObj;
+        });
+
         // Calculate range for "Showing X-Y of Z items"
         const startItem = total === 0 ? 0 : skip + 1;
         const endItem = limit === 0 ? total : Math.min(skip + limit, total);
 
         // Enhanced response with comprehensive pagination metadata
         res.json({
-            data: options, // Changed from 'options' to 'data' for consistency
+            data: processedOptions, // Use processed options with clean URLs
             pagination: {
                 currentPage,
                 totalPages,
@@ -141,10 +145,16 @@ exports.createOption = async (req, res) => {
         // Populate the option field for consistent response
         await newOption.populate('option', 'title');
         
+        // Process URLs through URL helper to ensure clean URLs
+        const responseData = newOption.toObject();
+        if (responseData.videoUrl) {
+            responseData.videoUrl = toAbsoluteUrl(responseData.videoUrl);
+        }
+        
         res.status(201).json({
             success: true,
             message: 'Sub-option created successfully',
-            data: newOption
+            data: responseData
         });
     } catch (error) {
         console.error('Error creating sub-option:', error);
@@ -197,10 +207,16 @@ exports.updateOption = async (req, res) => {
             });
         }
 
+        // Process URLs through URL helper to ensure clean URLs
+        const responseData = optionDoc.toObject();
+        if (responseData.videoUrl) {
+            responseData.videoUrl = toAbsoluteUrl(responseData.videoUrl);
+        }
+
         res.json({
             success: true,
             message: 'Sub-option updated successfully',
-            data: optionDoc
+            data: responseData
         });
     } catch (error) {
         console.error('Error updating sub-option:', error);
@@ -276,8 +292,17 @@ exports.searchOptions = async (req, res) => {
             .limit(limitNum)
             .sort({ createdAt: -1 });
         
+        // Process URLs through URL helper to ensure clean URLs
+        const processedResults = results.map(result => {
+            const resultObj = result.toObject();
+            if (resultObj.videoUrl) {
+                resultObj.videoUrl = toAbsoluteUrl(resultObj.videoUrl);
+            }
+            return resultObj;
+        });
+        
         res.json({
-            data: results,
+            data: processedResults, // Use processed results with clean URLs
             pagination: {
                 currentPage: pageNum,
                 totalPages: Math.ceil(total / limitNum),
