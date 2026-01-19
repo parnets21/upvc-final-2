@@ -764,7 +764,7 @@ exports.purchaseLead = async (req, res) => {
     }
 
     const sellersInCity = await Seller.find({ 
-      city: lead.projectInfo.address.city,
+      city: lead.projectInfo.area || lead.projectInfo.address || lead.projectInfo.city,
       status: 'approved',
       isActive: true
     });
@@ -1033,6 +1033,869 @@ exports.getSellerQuota = async (req, res) => {
       success: false, 
       message: 'Internal server error',
       error: error.message 
+    });
+  }
+};
+
+// Get all cities from leads
+exports.getCities = async (req, res) => {
+  try {
+    console.log('\n📍 [ADMIN] getCities called');
+    
+    // First, let's check what fields actually exist in the leads
+    const sampleLeads = await Lead.find({}).limit(3).lean();
+    console.log('🔍 Sample lead projectInfo structures:');
+    sampleLeads.forEach((lead, index) => {
+      console.log(`  Lead ${index + 1}:`, JSON.stringify(lead.projectInfo, null, 2));
+    });
+    
+    // Try multiple approaches to get cities
+    const citiesFromAddressCity = await Lead.distinct('projectInfo.address.city');
+    const citiesFromCity = await Lead.distinct('projectInfo.city');
+    const citiesFromArea = await Lead.distinct('projectInfo.area'); // Sometimes area contains city info
+    
+    console.log('🏙️ Cities from projectInfo.address.city:', citiesFromAddressCity);
+    console.log('🏙️ Cities from projectInfo.city:', citiesFromCity);
+    console.log('🏙️ Cities from projectInfo.area:', citiesFromArea);
+    
+    // Combine all possible city sources
+    const allCities = [
+      ...citiesFromAddressCity,
+      ...citiesFromCity,
+      ...citiesFromArea
+    ];
+    
+    // Filter out null/undefined values, deduplicate, and sort
+    const validCities = [...new Set(allCities)]
+      .filter(city => city && typeof city === 'string' && city.trim())
+      .sort();
+    
+    console.log('✅ Final cities found:', validCities.length, validCities);
+    
+    res.status(200).json({
+      success: true,
+      data: validCities
+    });
+  } catch (error) {
+    console.error('❌ Error fetching cities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get leads by city
+exports.getLeadsByCity = async (req, res) => {
+  try {
+    const { city } = req.params;
+    const { page = 1, limit = 10, status, search } = req.query;
+    
+    console.log(`\n🏙️ [ADMIN] getLeadsByCity called for city: ${city}`);
+    
+    const filter = {
+      $or: [
+        { 'projectInfo.address.city': city },
+        { 'projectInfo.city': city },
+        { 'projectInfo.area': city }
+      ]
+    };
+    
+    if (status) {
+      filter.status = status;
+    }
+    
+    if (search) {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { 'contactInfo.name': { $regex: search, $options: 'i' } },
+          { 'projectInfo.name': { $regex: search, $options: 'i' } },
+          { 'contactInfo.contactNumber': { $regex: search, $options: 'i' } }
+        ]
+      });
+    }
+    
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.max(1, Math.min(100, parseInt(limit, 10) || 10));
+    
+    const [total, leads] = await Promise.all([
+      Lead.countDocuments(filter),
+      Lead.find(filter)
+        .populate('buyer', 'name email phoneNumber')
+        .populate('seller.sellerId', 'companyName brandOfProfileUsed contactPerson phoneNumber')
+        .populate('category', 'name description')
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+    ]);
+    
+    console.log(`✅ Found ${leads.length} leads in ${city}`);
+    
+    res.status(200).json({
+      success: true,
+      total,
+      page: pageNum,
+      limit: pageSize,
+      data: leads
+    });
+  } catch (error) {
+    console.error('❌ Error fetching leads by city:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get expired leads
+exports.getExpiredLeads = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    
+    console.log('\n⏰ [ADMIN] getExpiredLeads called');
+    
+    const now = new Date();
+    const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    
+    const filter = {
+      createdAt: { $lt: fortyEightHoursAgo }
+    };
+    
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.max(1, Math.min(100, parseInt(limit, 10) || 10));
+    
+    const [total, leads] = await Promise.all([
+      Lead.countDocuments(filter),
+      Lead.find(filter)
+        .populate('buyer', 'name email phoneNumber')
+        .populate('seller.sellerId', 'companyName brandOfProfileUsed contactPerson phoneNumber')
+        .populate('category', 'name description')
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+    ]);
+    
+    console.log(`✅ Found ${leads.length} expired leads`);
+    
+    res.status(200).json({
+      success: true,
+      total,
+      page: pageNum,
+      limit: pageSize,
+      data: leads
+    });
+  } catch (error) {
+    console.error('❌ Error fetching expired leads:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get lead analytics
+exports.getLeadAnalytics = async (req, res) => {
+  try {
+    console.log('\n📊 [ADMIN] getLeadAnalytics called');
+    
+    const now = new Date();
+    const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    
+    const [totalLeads, activeLeads, expiredLeads, revenueData] = await Promise.all([
+      Lead.countDocuments({}),
+      Lead.countDocuments({
+        createdAt: { $gte: fortyEightHoursAgo },
+        availableSlots: { $gt: 0 },
+        status: { $in: ['new', 'in-progress'] }
+      }),
+      Lead.countDocuments({
+        createdAt: { $lt: fortyEightHoursAgo }
+      }),
+      Lead.aggregate([
+        {
+          $match: {
+            seller: { $exists: true, $ne: [] }
+          }
+        },
+        {
+          $unwind: '$seller'
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: {
+              $sum: {
+                $multiply: ['$dynamicSlotPrice', 1]
+              }
+            }
+          }
+        }
+      ])
+    ]);
+    
+    const analytics = {
+      totalLeads,
+      activeLeads,
+      expiredLeads,
+      totalRevenue: revenueData[0]?.totalRevenue || 0
+    };
+    
+    console.log('✅ Analytics calculated:', analytics);
+    
+    res.status(200).json({
+      success: true,
+      data: analytics
+    });
+  } catch (error) {
+    console.error('❌ Error fetching lead analytics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get city analytics
+exports.getCityAnalytics = async (req, res) => {
+  try {
+    console.log('\n🏙️ [ADMIN] getCityAnalytics called');
+    
+    const cityStats = await Lead.aggregate([
+      {
+        $addFields: {
+          city: {
+            $ifNull: [
+              '$projectInfo.address.city',
+              {
+                $ifNull: [
+                  '$projectInfo.city',
+                  '$projectInfo.area'
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: '$city',
+          totalLeads: { $sum: 1 },
+          totalRevenue: {
+            $sum: {
+              $multiply: [
+                { $size: { $ifNull: ['$seller', []] } },
+                { $ifNull: ['$dynamicSlotPrice', 0] }
+              ]
+            }
+          },
+          avgSqft: { $avg: '$totalSqft' }
+        }
+      },
+      {
+        $match: {
+          _id: { $ne: null }
+        }
+      },
+      {
+        $sort: { totalLeads: -1 }
+      }
+    ]);
+    
+    console.log(`✅ City analytics for ${cityStats.length} cities`);
+    
+    res.status(200).json({
+      success: true,
+      data: cityStats
+    });
+  } catch (error) {
+    console.error('❌ Error fetching city analytics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get brand analytics
+exports.getBrandAnalytics = async (req, res) => {
+  try {
+    console.log('\n🏷️ [ADMIN] getBrandAnalytics called');
+    
+    const brandStats = await Lead.aggregate([
+      {
+        $unwind: { path: '$seller', preserveNullAndEmptyArrays: true }
+      },
+      {
+        $lookup: {
+          from: 'sellers',
+          localField: 'seller.sellerId',
+          foreignField: '_id',
+          as: 'sellerInfo'
+        }
+      },
+      {
+        $unwind: { path: '$sellerInfo', preserveNullAndEmptyArrays: true }
+      },
+      {
+        $group: {
+          _id: '$sellerInfo.brandOfProfileUsed',
+          totalPurchases: { $sum: 1 },
+          totalRevenue: {
+            $sum: { $ifNull: ['$seller.pricePaid', '$dynamicSlotPrice', 0] }
+          },
+          uniqueLeads: { $addToSet: '$_id' }
+        }
+      },
+      {
+        $match: {
+          _id: { $ne: null }
+        }
+      },
+      {
+        $addFields: {
+          uniqueLeadsCount: { $size: '$uniqueLeads' }
+        }
+      },
+      {
+        $project: {
+          uniqueLeads: 0
+        }
+      },
+      {
+        $sort: { totalPurchases: -1 }
+      }
+    ]);
+    
+    console.log(`✅ Brand analytics for ${brandStats.length} brands`);
+    
+    res.status(200).json({
+      success: true,
+      data: brandStats
+    });
+  } catch (error) {
+    console.error('❌ Error fetching brand analytics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get comprehensive lead details
+exports.getComprehensiveLeadDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`\n🔍 [ADMIN] getComprehensiveLeadDetails called for lead: ${id}`);
+    
+    const lead = await Lead.findById(id)
+      .populate('buyer', 'name email phoneNumber mobileNumber')
+      .populate('seller.sellerId', 'companyName brandOfProfileUsed contactPerson phoneNumber city businessProfileVideo visitingCard yearsInBusiness status isActive')
+      .populate('category', 'name description')
+      .populate('quotes.product', 'title features')
+      .lean();
+    
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+    
+    console.log('✅ Comprehensive lead details fetched');
+    
+    res.status(200).json({
+      success: true,
+      data: lead
+    });
+  } catch (error) {
+    console.error('❌ Error fetching comprehensive lead details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get lead purchase history
+exports.getLeadPurchaseHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`\n💰 [ADMIN] getLeadPurchaseHistory called for lead: ${id}`);
+    
+    const lead = await Lead.findById(id)
+      .populate({
+        path: 'seller.sellerId',
+        select: 'companyName brandOfProfileUsed contactPerson phoneNumber email city businessProfileVideo visitingCard yearsInBusiness status isActive'
+      })
+      .lean();
+    
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+    
+    // Transform seller data into purchase history format
+    const purchaseHistory = lead.seller.map(purchase => ({
+      sellerName: purchase.sellerId?.companyName || purchase.sellerId?.contactPerson || 'Unknown',
+      sellerEmail: purchase.sellerId?.email || '',
+      sellerPhone: purchase.sellerId?.phoneNumber || '',
+      sellerCompany: purchase.sellerId?.companyName || '',
+      sellerCity: purchase.sellerId?.city || '',
+      brandOfProfileUsed: purchase.sellerId?.brandOfProfileUsed || '',
+      amount: purchase.pricePaid || lead.dynamicSlotPrice || 0,
+      pricePaid: purchase.pricePaid || lead.dynamicSlotPrice || 0,
+      freeQuotaUsed: purchase.freeQuotaUsed || 0,
+      purchaseDate: purchase.purchasedAt || purchase.createdAt,
+      purchasedAt: purchase.purchasedAt || purchase.createdAt,
+      paymentStatus: 'completed', // Default status
+      yearsInBusiness: purchase.sellerId?.yearsInBusiness || 0,
+      sellerStatus: purchase.sellerId?.status || 'unknown'
+    }));
+    
+    console.log(`✅ Purchase history with ${purchaseHistory.length} purchases`);
+    
+    res.status(200).json({
+      success: true,
+      data: purchaseHistory
+    });
+  } catch (error) {
+    console.error('❌ Error fetching lead purchase history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get lead visibility status
+exports.getLeadVisibilityStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`\n👁️ [ADMIN] getLeadVisibilityStatus called for lead: ${id}`);
+    
+    const lead = await Lead.findById(id).lean();
+    
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+    
+    const now = new Date();
+    const createdAt = new Date(lead.createdAt);
+    const hoursSinceCreation = (now - createdAt) / (1000 * 60 * 60);
+    const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    
+    const isWithin48Hours = createdAt >= fortyEightHoursAgo;
+    const hasAvailableSlots = lead.availableSlots > 0;
+    const validStatus = ['new', 'in-progress'].includes(lead.status);
+    
+    const isVisible = isWithin48Hours && hasAvailableSlots && validStatus;
+    
+    const reasons = [];
+    if (!isWithin48Hours) reasons.push('Lead is older than 48 hours');
+    if (!hasAvailableSlots) reasons.push('No available slots remaining');
+    if (!validStatus) reasons.push(`Invalid status: ${lead.status}`);
+    
+    const visibilityStatus = {
+      isVisible,
+      hoursSinceCreation,
+      isWithin48Hours,
+      hasAvailableSlots,
+      validStatus,
+      reasons: reasons.length > 0 ? reasons : null
+    };
+    
+    console.log('✅ Visibility status calculated:', { isVisible, reasons: reasons.length });
+    
+    res.status(200).json({
+      success: true,
+      data: visibilityStatus
+    });
+  } catch (error) {
+    console.error('❌ Error fetching lead visibility status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get lead timeline
+exports.getLeadTimeline = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`\n📅 [ADMIN] getLeadTimeline called for lead: ${id}`);
+    
+    const lead = await Lead.findById(id)
+      .populate('seller.sellerId', 'companyName contactPerson')
+      .lean();
+    
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+    
+    const timeline = [];
+    
+    // Lead created event
+    timeline.push({
+      type: 'created',
+      title: 'Lead Created',
+      description: `Lead created for ${lead.projectInfo?.name || 'project'} in ${lead.projectInfo?.address?.city || 'unknown city'}`,
+      timestamp: lead.createdAt
+    });
+    
+    // Purchase events
+    lead.seller.forEach(purchase => {
+      timeline.push({
+        type: 'purchased',
+        title: 'Lead Purchased',
+        description: `Purchased by ${purchase.sellerId?.companyName || purchase.sellerId?.contactPerson || 'Unknown seller'}`,
+        timestamp: purchase.purchasedAt || lead.createdAt
+      });
+    });
+    
+    // Check if expired
+    const now = new Date();
+    const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    if (new Date(lead.createdAt) < fortyEightHoursAgo) {
+      timeline.push({
+        type: 'expired',
+        title: 'Lead Expired',
+        description: 'Lead is no longer visible to sellers (>48 hours old)',
+        timestamp: new Date(new Date(lead.createdAt).getTime() + 48 * 60 * 60 * 1000)
+      });
+    }
+    
+    // Sort timeline by timestamp
+    timeline.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    console.log(`✅ Timeline with ${timeline.length} events`);
+    
+    res.status(200).json({
+      success: true,
+      data: timeline
+    });
+  } catch (error) {
+    console.error('❌ Error fetching lead timeline:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get lead invoices (placeholder - implement based on your invoice system)
+exports.getLeadInvoices = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`\n🧾 [ADMIN] getLeadInvoices called for lead: ${id}`);
+    
+    // This is a placeholder - implement based on your actual invoice system
+    const invoices = [];
+    
+    console.log(`✅ Found ${invoices.length} invoices`);
+    
+    res.status(200).json({
+      success: true,
+      data: invoices
+    });
+  } catch (error) {
+    console.error('❌ Error fetching lead invoices:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get lead details (basic version - fallback)
+exports.getLeadDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`\n📋 [ADMIN] getLeadDetails (basic) called for lead: ${id}`);
+    
+    const lead = await Lead.findById(id)
+      .populate('buyer', 'name email phoneNumber')
+      .populate('seller.sellerId', 'companyName brandOfProfileUsed contactPerson phoneNumber')
+      .populate('category', 'name description')
+      .lean();
+    
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+    
+    console.log('✅ Basic lead details fetched');
+    
+    res.status(200).json({
+      success: true,
+      data: lead
+    });
+  } catch (error) {
+    console.error('❌ Error fetching basic lead details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get lead purchases (basic version - fallback)
+exports.getLeadPurchases = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`\n💰 [ADMIN] getLeadPurchases (basic) called for lead: ${id}`);
+    
+    const lead = await Lead.findById(id)
+      .populate('seller.sellerId', 'companyName contactPerson phoneNumber email city')
+      .lean();
+    
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+    
+    // Transform seller data into purchase format
+    const purchases = lead.seller.map(purchase => ({
+      buyerName: purchase.sellerId?.companyName || purchase.sellerId?.contactPerson || 'Unknown',
+      buyerEmail: purchase.sellerId?.email || '',
+      buyerPhone: purchase.sellerId?.phoneNumber || '',
+      buyerCompany: purchase.sellerId?.companyName || '',
+      buyerCity: purchase.sellerId?.city || '',
+      amount: purchase.pricePaid || lead.dynamicSlotPrice || 0,
+      purchaseDate: purchase.purchasedAt || purchase.createdAt,
+      paymentStatus: 'completed'
+    }));
+    
+    console.log(`✅ Found ${purchases.length} purchases (basic)`);
+    
+    res.status(200).json({
+      success: true,
+      data: purchases
+    });
+  } catch (error) {
+    console.error('❌ Error fetching basic lead purchases:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get comprehensive admin leads (enhanced version of getAllLeads)
+exports.getAllLeadsAdmin = async (req, res) => {
+  try {
+    console.log('\n🔍 [ADMIN] getAllLeadsAdmin called');
+    console.log('📋 Query params:', JSON.stringify(req.query, null, 2));
+    
+    const { 
+      status, 
+      page = 1, 
+      limit = 10, 
+      search, 
+      dateFrom, 
+      dateTo,
+      minPrice,
+      maxPrice,
+      minSqft,
+      maxSqft
+    } = req.query;
+    
+    const filter = {};
+    
+    // Status filter
+    if (status && status !== 'all') {
+      const statusMap = {
+        'active': 'in-progress',
+        'pending': 'new',
+        'sold': 'closed'
+      };
+      filter.status = statusMap[status] || status;
+    }
+    
+    // Search filter
+    if (search) {
+      filter.$or = [
+        { 'contactInfo.name': { $regex: search, $options: 'i' } },
+        { 'projectInfo.name': { $regex: search, $options: 'i' } },
+        { 'contactInfo.contactNumber': { $regex: search, $options: 'i' } },
+        { 'contactInfo.email': { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Date range filter
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) filter.createdAt.$lte = new Date(dateTo + 'T23:59:59.999Z');
+    }
+    
+    // Price range filter
+    if (minPrice || maxPrice) {
+      filter.$expr = {};
+      const priceConditions = [];
+      
+      if (minPrice) {
+        priceConditions.push({
+          $gte: [
+            { $multiply: ['$totalSqft', '$basePricePerSqft'] },
+            parseFloat(minPrice)
+          ]
+        });
+      }
+      
+      if (maxPrice) {
+        priceConditions.push({
+          $lte: [
+            { $multiply: ['$totalSqft', '$basePricePerSqft'] },
+            parseFloat(maxPrice)
+          ]
+        });
+      }
+      
+      if (priceConditions.length > 0) {
+        filter.$expr = priceConditions.length === 1 ? priceConditions[0] : { $and: priceConditions };
+      }
+    }
+    
+    // Sqft range filter
+    if (minSqft) filter.totalSqft = { ...filter.totalSqft, $gte: parseFloat(minSqft) };
+    if (maxSqft) filter.totalSqft = { ...filter.totalSqft, $lte: parseFloat(maxSqft) };
+    
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.max(1, Math.min(100, parseInt(limit, 10) || 10));
+    
+    console.log('🔍 Filter:', JSON.stringify(filter, null, 2));
+    
+    const [total, leads] = await Promise.all([
+      Lead.countDocuments(filter),
+      Lead.find(filter)
+        .populate('buyer', 'name email phoneNumber mobileNumber')
+        .populate('seller.sellerId', 'companyName brandOfProfileUsed contactPerson phoneNumber city businessProfileVideo visitingCard yearsInBusiness status isActive')
+        .populate('category', 'name description')
+        .populate('quotes.product', 'title features')
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+    ]);
+    
+    // Enhance leads with calculated fields
+    const enhancedLeads = leads.map(lead => {
+      const now = new Date();
+      const createdAt = new Date(lead.createdAt);
+      const hoursSinceCreation = (now - createdAt) / (1000 * 60 * 60);
+      const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+      
+      const isWithin48Hours = createdAt >= fortyEightHoursAgo;
+      const hasAvailableSlots = lead.availableSlots > 0;
+      const validStatus = ['new', 'in-progress'].includes(lead.status);
+      const isVisible = isWithin48Hours && hasAvailableSlots && validStatus;
+      
+      return {
+        ...lead,
+        estimatedValue: lead.totalSqft * (lead.basePricePerSqft || 10.5),
+        purchaseCount: lead.seller?.length || 0,
+        totalRevenue: (lead.seller?.length || 0) * (lead.dynamicSlotPrice || 0),
+        isVisible,
+        hoursSinceCreation,
+        isExpired: !isWithin48Hours
+      };
+    });
+    
+    console.log(`✅ Found ${enhancedLeads.length} comprehensive admin leads`);
+    
+    res.status(200).json({
+      success: true,
+      total,
+      page: pageNum,
+      limit: pageSize,
+      count: enhancedLeads.length,
+      leads: enhancedLeads,
+      data: enhancedLeads
+    });
+  } catch (error) {
+    console.error('❌ Error fetching comprehensive admin leads:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Extend lead expiry
+exports.extendLeadExpiry = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { days } = req.body;
+    
+    console.log(`\n⏰ [ADMIN] extendLeadExpiry called for lead: ${id}, days: ${days}`);
+    
+    if (!days || days <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid number of days'
+      });
+    }
+    
+    const lead = await Lead.findById(id);
+    
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+    
+    // Extend the creation date by the specified number of days
+    // This effectively extends the 48-hour visibility window
+    const currentCreatedAt = new Date(lead.createdAt);
+    const newCreatedAt = new Date(currentCreatedAt.getTime() + (days * 24 * 60 * 60 * 1000));
+    
+    lead.createdAt = newCreatedAt;
+    await lead.save();
+    
+    console.log(`✅ Lead expiry extended by ${days} days`);
+    
+    res.status(200).json({
+      success: true,
+      message: `Lead expiry extended by ${days} days`,
+      lead
+    });
+  } catch (error) {
+    console.error('❌ Error extending lead expiry:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
     });
   }
 };

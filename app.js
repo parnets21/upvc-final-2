@@ -106,6 +106,7 @@ app.use('/api/subcategories', require('./routes/Admin/subCategoryRoutes'));
 
 app.use('/api/seller/managment', require('./routes/Admin/sellerManagement'));
 app.use('/api/seller/lead', require('./routes/Admin/lead'));
+app.use('/api/admin/leads', require('./routes/Admin/lead')); // Admin lead routes
 app.use('/api/admin', require('./routes/Admin/buyerManagement'));
 
 app.use('/api/sellers', require('./routes/Seller/sellerRoutes')); 

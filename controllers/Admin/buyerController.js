@@ -1,4 +1,5 @@
 const User = require('../../models/Buyer/User');
+const Lead = require('../../models/Admin/lead');
 
 // Get all buyers with pagination and search
 exports.getAllBuyers = async (req, res) => {
@@ -26,13 +27,46 @@ exports.getAllBuyers = async (req, res) => {
         .limit(pageSize),
     ]);
 
+    // Enhance buyers with lead information (city, lead count, etc.)
+    const enhancedBuyers = await Promise.all(
+      buyers.map(async (buyer) => {
+        // Get the most recent lead to extract city information
+        const recentLead = await Lead.findOne({ buyer: buyer._id })
+          .sort({ createdAt: -1 })
+          .select('projectInfo contactInfo')
+          .lean();
+
+        // Count total leads by this buyer
+        const leadCount = await Lead.countDocuments({ buyer: buyer._id });
+
+        // Extract city from lead data
+        let city = null;
+        let contactName = null;
+        if (recentLead) {
+          city = recentLead.projectInfo?.area || 
+                 recentLead.projectInfo?.address || 
+                 recentLead.projectInfo?.city;
+          contactName = recentLead.contactInfo?.name;
+        }
+
+        return {
+          ...buyer.toObject(),
+          // Use name from buyer model, fallback to contact name from lead, then "Not Provided"
+          name: buyer.name || contactName || null,
+          city: city || null,
+          leadCount: leadCount,
+          lastLeadDate: recentLead ? recentLead.createdAt : null
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
       total,
       page: pageNum,
       limit: pageSize,
-      count: buyers.length,
-      buyers
+      count: enhancedBuyers.length,
+      buyers: enhancedBuyers
     });
   } catch (error) {
     console.error('Error fetching buyers:', error);
