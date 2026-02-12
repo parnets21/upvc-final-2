@@ -103,6 +103,7 @@ app.use('/api/buyer/advertisements', require('./routes/Admin/buyerAdvertisement'
 
 app.use('/api/categories', require('./routes/Admin/categoryRoutes'));
 app.use('/api/subcategories', require('./routes/Admin/subCategoryRoutes'));
+app.use('/api/brands', require('./routes/brandRoutes'));
 
 app.use('/api/seller/managment', require('./routes/Admin/sellerManagement'));
 app.use('/api/seller/lead', require('./routes/Admin/lead'));
