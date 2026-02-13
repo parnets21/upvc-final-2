@@ -21,6 +21,7 @@ router.post(
 );
 
 router.get("/", authenticateSeller , sellerController.getSellerProfile);
+router.post("/update-fcm-token", authenticateSeller, sellerController.updateFCMToken);
 router.put(
   "/",
   upload("sellers").fields([

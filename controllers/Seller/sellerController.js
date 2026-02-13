@@ -3,6 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const { signOTPToken } = require('../../utils/jwtHelper');
 const ExcelJS = require('exceljs');
+const {
+  sendDocumentApprovalNotification,
+  sendDocumentRejectionNotification,
+} = require('../../utils/notificationHelper');
 
 // Register new seller
 exports.registerSeller = async (req, res) => {
@@ -129,6 +133,46 @@ exports.getSellerProfile = async (req, res) => {
       success: false, 
       message: 'Internal server error',
       error: error.message 
+    });
+  }
+};
+
+// Update FCM token
+exports.updateFCMToken = async (req, res) => {
+  try {
+    const { fcmToken } = req.body;
+    const sellerId = req.seller._id;
+
+    if (!fcmToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'FCM token is required'
+      });
+    }
+
+    const seller = await Seller.findByIdAndUpdate(
+      sellerId,
+      { fcmToken },
+      { new: true }
+    );
+
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: 'Seller not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'FCM token updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating FCM token:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating FCM token',
+      error: error.message
     });
   }
 };
@@ -981,6 +1025,11 @@ exports.approveDocument = async (req, res) => {
     
     await seller.save();
 
+    // Send notification to seller if FCM token exists
+    if (seller.fcmToken) {
+      await sendDocumentApprovalNotification(seller.fcmToken, documentType);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Document approved successfully',
@@ -1044,6 +1093,11 @@ exports.rejectDocument = async (req, res) => {
     seller[rejectionReasonField] = reason;
     
     await seller.save();
+
+    // Send notification to seller if FCM token exists
+    if (seller.fcmToken) {
+      await sendDocumentRejectionNotification(seller.fcmToken, documentType, reason);
+    }
 
     res.status(200).json({
       success: true,

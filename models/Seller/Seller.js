@@ -8,6 +8,10 @@ const SellerSchema = new mongoose.Schema({
     unique: true,
     trim: true,
   },
+  fcmToken: {
+    type: String,
+    trim: true,
+  },
   otp: {
     type: String,
     select: false,
