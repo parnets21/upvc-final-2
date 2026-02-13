@@ -33,6 +33,8 @@ router.get('/sellers/:sellerId/documents', adminController.getSellerDocuments);
 router.put('/sellers/:sellerId/approve', adminController.approveSeller);
 router.put('/sellers/:sellerId/reject', adminController.rejectSeller);
 router.put('/sellers/:sellerId/toggle-status', adminController.toggleSellerStatus);
+router.put('/sellers/:sellerId/documents/:documentType/approve', adminController.approveDocument);
+router.put('/sellers/:sellerId/documents/:documentType/reject', adminController.rejectDocument);
 router.put('/sellers/:sellerId', adminController.updateSellerByAdmin);
 router.delete('/sellers/:sellerId', adminController.deleteSeller);
 

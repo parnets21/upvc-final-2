@@ -64,8 +64,26 @@ const SellerSchema = new mongoose.Schema({
   gstCertificate: {
     type: String,
   },
+  gstCertificateStatus: {
+    type: String,
+    enum: ["pending", "approved", "rejected"],
+    default: "pending",
+  },
+  gstCertificateRejectionReason: {
+    type: String,
+    trim: true,
+  },
   visitingCard: {
     type: String,
+  },
+  visitingCardStatus: {
+    type: String,
+    enum: ["pending", "approved", "rejected"],
+    default: "pending",
+  },
+  visitingCardRejectionReason: {
+    type: String,
+    trim: true,
   },
   brandOfProfileUsed: {
     type: String,
@@ -73,6 +91,15 @@ const SellerSchema = new mongoose.Schema({
   },
   businessProfileVideo: {
     type: String,
+  },
+  businessProfileVideoStatus: {
+    type: String,
+    enum: ["pending", "approved", "rejected"],
+    default: "pending",
+  },
+  businessProfileVideoRejectionReason: {
+    type: String,
+    trim: true,
   },
   status: {
     type: String,

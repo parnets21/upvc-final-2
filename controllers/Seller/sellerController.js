@@ -889,7 +889,7 @@ exports.getSellerDocuments = async (req, res) => {
     const { sellerId } = req.params;
     
     const seller = await Seller.findById(sellerId).select(
-      'companyName gstCertificate visitingCard businessProfileVideo createdAt updatedAt'
+      'companyName gstCertificate gstCertificateStatus gstCertificateRejectionReason visitingCard visitingCardStatus visitingCardRejectionReason businessProfileVideo businessProfileVideoStatus businessProfileVideoRejectionReason createdAt updatedAt'
     );
 
     if (!seller) {
@@ -903,17 +903,23 @@ exports.getSellerDocuments = async (req, res) => {
       gstCertificate: {
         exists: !!seller.gstCertificate,
         path: seller.gstCertificate,
-        type: 'GST Certificate'
+        type: 'GST Certificate',
+        status: seller.gstCertificateStatus || 'pending',
+        rejectionReason: seller.gstCertificateRejectionReason || null
       },
       visitingCard: {
         exists: !!seller.visitingCard,
         path: seller.visitingCard,
-        type: 'Visiting Card'
+        type: 'Visiting Card',
+        status: seller.visitingCardStatus || 'pending',
+        rejectionReason: seller.visitingCardRejectionReason || null
       },
       businessProfileVideo: {
         exists: !!seller.businessProfileVideo,
         path: seller.businessProfileVideo,
-        type: 'Business Profile Video'
+        type: 'Business Profile Video',
+        status: seller.businessProfileVideoStatus || 'pending',
+        rejectionReason: seller.businessProfileVideoRejectionReason || null
       }
     };
 
@@ -931,6 +937,127 @@ exports.getSellerDocuments = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching seller documents',
+      error: error.message
+    });
+  }
+};
+
+// Approve a specific document
+exports.approveDocument = async (req, res) => {
+  try {
+    const { sellerId, documentType } = req.params;
+    
+    // Validate document type
+    const validDocTypes = ['gstCertificate', 'visitingCard', 'businessProfileVideo'];
+    if (!validDocTypes.includes(documentType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type'
+      });
+    }
+
+    const seller = await Seller.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: 'Seller not found'
+      });
+    }
+
+    // Check if document exists
+    if (!seller[documentType]) {
+      return res.status(400).json({
+        success: false,
+        message: 'Document not uploaded'
+      });
+    }
+
+    // Update document status
+    const statusField = `${documentType}Status`;
+    const rejectionReasonField = `${documentType}RejectionReason`;
+    
+    seller[statusField] = 'approved';
+    seller[rejectionReasonField] = null; // Clear any previous rejection reason
+    
+    await seller.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Document approved successfully',
+      documentType,
+      status: 'approved'
+    });
+
+  } catch (error) {
+    console.error('Error approving document:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error approving document',
+      error: error.message
+    });
+  }
+};
+
+// Reject a specific document
+exports.rejectDocument = async (req, res) => {
+  try {
+    const { sellerId, documentType } = req.params;
+    const { reason } = req.body;
+
+    if (!reason || reason.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Rejection reason is required'
+      });
+    }
+
+    // Validate document type
+    const validDocTypes = ['gstCertificate', 'visitingCard', 'businessProfileVideo'];
+    if (!validDocTypes.includes(documentType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type'
+      });
+    }
+
+    const seller = await Seller.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: 'Seller not found'
+      });
+    }
+
+    // Check if document exists
+    if (!seller[documentType]) {
+      return res.status(400).json({
+        success: false,
+        message: 'Document not uploaded'
+      });
+    }
+
+    // Update document status
+    const statusField = `${documentType}Status`;
+    const rejectionReasonField = `${documentType}RejectionReason`;
+    
+    seller[statusField] = 'rejected';
+    seller[rejectionReasonField] = reason;
+    
+    await seller.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Document rejected successfully',
+      documentType,
+      status: 'rejected',
+      rejectionReason: reason
+    });
+
+  } catch (error) {
+    console.error('Error rejecting document:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error rejecting document',
       error: error.message
     });
   }
