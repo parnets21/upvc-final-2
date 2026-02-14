@@ -206,6 +206,34 @@ const sendNewLeadNotification = async (fcmToken, leadData) => {
   });
 };
 
+/**
+ * Send seller application rejection notification
+ * @param {string} fcmToken - Seller's FCM token
+ * @param {string} reason - Rejection reason
+ */
+const sendSellerApplicationRejectionNotification = async (fcmToken, reason) => {
+  const title = 'Application Rejected';
+  const body = `Your seller application has been rejected. Reason: ${reason}`;
+  
+  return await sendNotificationToDevice(fcmToken, title, body, {
+    type: 'application_rejection',
+    reason,
+  });
+};
+
+/**
+ * Send seller application approval notification
+ * @param {string} fcmToken - Seller's FCM token
+ */
+const sendSellerApplicationApprovalNotification = async (fcmToken) => {
+  const title = 'Application Approved!';
+  const body = 'Congratulations! Your seller application has been approved. You can now start receiving leads.';
+  
+  return await sendNotificationToDevice(fcmToken, title, body, {
+    type: 'application_approval',
+  });
+};
+
 module.exports = {
   sendNotificationToDevice,
   sendNotificationToMultipleDevices,
@@ -213,4 +241,6 @@ module.exports = {
   sendDocumentRejectionNotification,
   sendDocumentApprovalNotification,
   sendNewLeadNotification,
+  sendSellerApplicationRejectionNotification,
+  sendSellerApplicationApprovalNotification,
 };

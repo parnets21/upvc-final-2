@@ -6,6 +6,8 @@ const ExcelJS = require('exceljs');
 const {
   sendDocumentApprovalNotification,
   sendDocumentRejectionNotification,
+  sendSellerApplicationRejectionNotification,
+  sendSellerApplicationApprovalNotification,
 } = require('../../utils/notificationHelper');
 
 // Register new seller
@@ -23,7 +25,8 @@ exports.registerSeller = async (req, res) => {
       gstNumber,
       contactPerson,
       contactNumber,
-      brandOfProfileUsed
+      brandOfProfileUsed,
+      fcmToken
     } = req.body;
 
     // Check if seller already exists
@@ -67,6 +70,11 @@ exports.registerSeller = async (req, res) => {
       visitingCard: visitingCardPath,
       businessProfileVideo: businessProfileVideoPath
     };
+
+    // Add FCM token if provided
+    if (fcmToken) {
+      sellerData.fcmToken = fcmToken;
+    }
 
     let seller;
     if (existingSeller) {
@@ -412,6 +420,11 @@ exports.approveSeller = async (req, res) => {
       });
     }
 
+    // Send notification to seller if FCM token exists
+    if (seller.fcmToken) {
+      await sendSellerApplicationApprovalNotification(seller.fcmToken);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Seller approved successfully',
@@ -451,6 +464,11 @@ exports.rejectSeller = async (req, res) => {
         success: false,
         message: 'Seller not found'
       });
+    }
+
+    // Send notification to seller if FCM token exists
+    if (seller.fcmToken) {
+      await sendSellerApplicationRejectionNotification(seller.fcmToken, reason);
     }
 
     res.status(200).json({
