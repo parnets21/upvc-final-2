@@ -20,8 +20,8 @@ const {
 } = require('../utils/notificationHelper');
 
 // Configuration
-const SELLER_ID = 'PASTE_SELLER_ID_HERE'; // Replace with actual seller ID
-const TEST_FCM_TOKEN = 'PASTE_FCM_TOKEN_HERE'; // Replace with actual FCM token
+const SELLER_ID = '699404dedb09b2f2d9eed4d8'; // Replace with actual seller ID
+const TEST_FCM_TOKEN = ''; // Leave empty to use token from database
 
 // Connect to database
 mongoose.connect(process.env.MONGO_URI, {

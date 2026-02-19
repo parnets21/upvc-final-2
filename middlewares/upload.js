@@ -109,7 +109,13 @@ upload.video = (fieldName) => {
 upload.pricingVideo = () => {
   const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-      const dir = path.join('uploads', 'video');
+      // Use different directories based on field name
+      let dir;
+      if (file.fieldname === 'sponsorLogo') {
+        dir = path.join('uploads', 'video'); // Store sponsor logos in video folder
+      } else {
+        dir = path.join('uploads', 'video');
+      }
       fs.mkdirSync(dir, { recursive: true });
       cb(null, dir);
     },
@@ -120,10 +126,29 @@ upload.pricingVideo = () => {
   });
 
   const fileFilter = (req, file, cb) => {
-    console.log("Pricing video upload - file.mimetype:", file.mimetype);
-    console.log("Pricing video upload - file.originalname:", file.originalname);
+    console.log("Pricing upload - fieldname:", file.fieldname);
+    console.log("Pricing upload - file.mimetype:", file.mimetype);
+    console.log("Pricing upload - file.originalname:", file.originalname);
     
     const fileExt = path.extname(file.originalname).toLowerCase();
+    
+    // Handle sponsor logo separately (allow images)
+    if (file.fieldname === 'sponsorLogo') {
+      const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      const imageExts = ['.jpg', '.jpeg', '.png', '.webp'];
+      
+      if (imageTypes.includes(file.mimetype) && imageExts.includes(fileExt)) {
+        cb(null, true);
+        return;
+      } else {
+        const error = `Invalid sponsor logo format. Only JPG, PNG, and WEBP images are supported. Received: ${fileExt} (${file.mimetype})`;
+        console.error(error);
+        cb(new Error(error), false);
+        return;
+      }
+    }
+    
+    // Handle video files
     const isValidMime = videoConfig.allowedTypes.includes(file.mimetype);
     const isValidExt = videoConfig.allowedExtensions.includes(fileExt);
     
@@ -147,7 +172,10 @@ upload.pricingVideo = () => {
   return multer({ 
     storage, 
     fileFilter,
-    limits: { fileSize: videoConfig.maxSize }
+    limits: { 
+      fileSize: videoConfig.maxSize,
+      files: 2 // Allow up to 2 files (video + sponsor logo)
+    }
   });
 };
 

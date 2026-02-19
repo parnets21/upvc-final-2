@@ -17,11 +17,12 @@ exports.createVideoPrice = async (req, res) => {
     
     const { title, subtitle, description } = req.body;
     
-    if (!title || !subtitle) {
-      return res.status(400).json({ error: 'Title and subtitle are required' });
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
     }
     
-    // Ensure description is always a string (default to empty string if not provided)
+    // Ensure subtitle and description are always strings (default to empty string if not provided)
+    const videoSubtitle = subtitle || '';
     const videoDescription = description || '';
     
     // Support both .single('video') and .fields. If field name differs, fall back to first file.
@@ -93,7 +94,7 @@ exports.createVideoPrice = async (req, res) => {
     const newVideo = new VideoPrice({
       video: videoPath,
       title,
-      subtitle,
+      subtitle: videoSubtitle,
       description: videoDescription,
       sponsorLogo: sponsorLogoPath,
       sponsorText: req.body.sponsorText || ''
@@ -145,39 +146,39 @@ exports.getVideoPriceById = async (req, res) => {
 
 exports.updateVideoPrice = async (req, res) => {
   try {
+    console.log('=== Update Video Price ===');
+    console.log('req.body:', req.body);
+    console.log('req.files:', req.files);
+    
     const { title, subtitle, description, sponsorText } = req.body;
-    let file = req.file || req.files?.video?.[0];
-    if (!file && Array.isArray(req.files) && req.files.length > 0) {
-      file = req.files[0];
-    }
-    if (!file && req.files && typeof req.files === 'object') {
-      const firstKey = Object.keys(req.files)[0];
-      if (firstKey && Array.isArray(req.files[firstKey]) && req.files[firstKey][0]) {
-        file = req.files[firstKey][0];
-      }
-    }
+    
+    // Separate video file from sponsor logo
+    let videoFile = req.files?.video?.[0];
+    let sponsorLogoFile = req.files?.sponsorLogo?.[0];
 
     const updatedData = { 
       title, 
-      subtitle, 
+      subtitle: subtitle || '', // Make subtitle optional
       description: description || '', // Ensure description is always a string
       sponsorText: sponsorText || ''
     };
     
-    if (file) {
+    // Handle video file update
+    if (videoFile) {
+      console.log('Updating video file:', videoFile.originalname);
       // Validate video file format
-      const validation = validateFileType(file, 'video');
+      const validation = validateFileType(videoFile, 'video');
       if (!validation.valid) {
         return res.status(400).json({ error: validation.error });
       }
 
       // Transcode video for mobile compatibility if needed
-      let finalVideoPath = file.path;
-      const transcodedPath = file.path.replace(/\.(mp4|mov)$/i, '_mobile.mp4');
+      let finalVideoPath = videoFile.path;
+      const transcodedPath = videoFile.path.replace(/\.(mp4|mov)$/i, '_mobile.mp4');
       
       try {
         console.log('Transcoding video for mobile compatibility...');
-        const transcodeResult = await transcodeVideoIfNeeded(file.path, transcodedPath);
+        const transcodeResult = await transcodeVideoIfNeeded(videoFile.path, transcodedPath);
         
         if (transcodeResult.success && transcodeResult.transcoded) {
           finalVideoPath = transcodeResult.outputPath;
@@ -190,25 +191,36 @@ exports.updateVideoPrice = async (req, res) => {
       updatedData.video = normalizeFilePath(finalVideoPath);
     }
     
-    if (req.files?.sponsorLogo?.[0]) { 
-      // Validate sponsor logo
-      const logoValidation = validateFileType(req.files.sponsorLogo[0], 'image');
+    // Handle sponsor logo update
+    if (sponsorLogoFile) { 
+      console.log('Updating sponsor logo:', sponsorLogoFile.originalname);
+      // Validate sponsor logo (already validated by multer, but double-check)
+      const logoValidation = validateFileType(sponsorLogoFile, 'image');
       if (!logoValidation.valid) {
         return res.status(400).json({ error: `Sponsor logo: ${logoValidation.error}` });
       }
-      updatedData.sponsorLogo = normalizeFilePath(req.files.sponsorLogo[0].path);
+      updatedData.sponsorLogo = normalizeFilePath(sponsorLogoFile.path);
     }
     
+    console.log('Updating video with data:', updatedData);
     const updated = await VideoPrice.findByIdAndUpdate(req.params.id, updatedData, { new: true });
 
     if (!updated) return res.status(404).json({ error: 'Video not found' });
-    // Normalize video path in response
+    
+    console.log('Video updated successfully');
+    // Return with normalized paths
     res.json({
       ...updated._doc,
-      video: normalizeFilePath(updated.video)
+      video: normalizeFilePath(updated.video),
+      sponsorLogo: updated.sponsorLogo ? normalizeFilePath(updated.sponsorLogo) : null
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error updating video price:', err);
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ 
+      error: err.message,
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 };
 

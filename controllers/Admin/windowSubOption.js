@@ -132,7 +132,12 @@ exports.createOption = async (req, res) => {
             console.log('Using video URL:', videoUrl);
         }
 
-        const featuresList = features ? (typeof features === 'string' ? features.split(",") : features) : [];
+        // Split features by newlines, commas, or semicolons and clean up
+        const featuresList = features 
+            ? (typeof features === 'string' 
+                ? features.split(/[\n,;]+/).map(f => f.trim()).filter(f => f.length > 0)
+                : features) 
+            : [];
         const newOption = new WindowSubOptions({
             option,
             title,
@@ -185,7 +190,11 @@ exports.updateOption = async (req, res) => {
         // Update fields if provided
         if (option) updates.option = option;
         if (title) updates.title = title;
-        if (features) updates.features = typeof features === 'string' ? features.split(",") : features;
+        if (features) {
+            updates.features = typeof features === 'string' 
+                ? features.split(/[\n,;]+/).map(f => f.trim()).filter(f => f.length > 0)
+                : features;
+        }
         if (videoUrl !== undefined) updates.videoUrl = videoUrl;
 
         // Handle video file upload - if file is uploaded, use it; otherwise keep existing or use videoUrl from body

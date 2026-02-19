@@ -141,7 +141,7 @@ const leadSchema = new mongoose.Schema({
   //new fields :
   basePricePerSqft: { type: Number, default: 10.50 },
   dynamicSlotPrice: { type: Number }, // will be calculated
-  maxSlots: { type: Number }, // will be calculated
+  maxSlots: { type: Number, default: 6 }, // default 6 slots per lead
   overProfit:{type : Boolean , default : false},
   createdAt: {
     type: Date,

@@ -13,7 +13,8 @@ const videoPriceSchema = new Schema({
   },
   subtitle: {
     type: String,
-    required: true
+    required: false,
+    default: ''
   },
   description: {
     type: String,

@@ -7,6 +7,17 @@ const {
   createPriceHeading,getAllPriceHeadings,getPriceHeadingById,updatePriceHeading,deletePriceHeading
 } = require('../../controllers/Admin/pricingController');
 
+const {
+  createPriceComparison,
+  getAllPriceComparisons,
+  getPriceComparisonById,
+  updatePriceComparison,
+  deletePriceComparison,
+  getPricePageContent,
+  updatePricePageContent
+} = require('../../controllers/Admin/priceComparisonController');
+
+// Video pricing routes
 router.post('/video', 
   // Use strict video validation for pricing videos
   upload.pricingVideo().fields([
@@ -23,10 +34,23 @@ router.put('/video/:id',
   ]),
   updateVideoPrice);
 router.delete('/video/:id', deleteVideoPrice);
+
+// Heading routes
 router.post('/heading', upload('heading', ['image/*']).single('image'), createPriceHeading);
 router.get('/heading',getAllPriceHeadings);
 router.get('/heading/:id', getPriceHeadingById);
 router.put('/heading/:id', upload('heading', ['image/*']).single('image'), updatePriceHeading);
 router.delete('/heading/:id', deletePriceHeading);
+
+// Price comparison routes
+router.post('/comparison', createPriceComparison);
+router.get('/comparison', getAllPriceComparisons);
+router.get('/comparison/:id', getPriceComparisonById);
+router.put('/comparison/:id', updatePriceComparison);
+router.delete('/comparison/:id', deletePriceComparison);
+
+// Price page content routes
+router.get('/content', getPricePageContent);
+router.put('/content', updatePricePageContent);
 
 module.exports = router;

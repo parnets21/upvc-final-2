@@ -200,7 +200,16 @@ exports.updateSellerProfile = async (req, res) => {
       });
     }
 
-    if (existingSeller.status !== 'approved') {
+    // Allow document re-uploads even if seller is not approved
+    // This is necessary for sellers to fix rejected documents
+    const isDocumentReupload = req.files && (
+      req.files['gstCertificate'] || 
+      req.files['visitingCard'] || 
+      req.files['businessProfileVideo']
+    );
+
+    // Only block profile updates (non-document fields) if seller is not approved
+    if (existingSeller.status !== 'approved' && !isDocumentReupload) {
       return res.status(403).json({
         success: false,
         message: 'Only approved sellers can update profiles',
@@ -212,12 +221,18 @@ exports.updateSellerProfile = async (req, res) => {
     if (req.files) {
       if (req.files['gstCertificate']) {
         updateData.gstCertificate = path.join('sellers', req.files['gstCertificate'][0].filename);
+        updateData.gstCertificateStatus = 'pending'; // Reset status to pending
+        updateData.gstCertificateRejectionReason = ''; // Clear rejection reason
       }
       if (req.files['visitingCard']) {
         updateData.visitingCard = path.join('sellers', req.files['visitingCard'][0].filename);
+        updateData.visitingCardStatus = 'pending'; // Reset status to pending
+        updateData.visitingCardRejectionReason = ''; // Clear rejection reason
       }
       if (req.files['businessProfileVideo']) {
         updateData.businessProfileVideo = path.join('sellers', req.files['businessProfileVideo'][0].filename);
+        updateData.businessProfileVideoStatus = 'pending'; // Reset status to pending
+        updateData.businessProfileVideoRejectionReason = ''; // Clear rejection reason
       }
     }
 

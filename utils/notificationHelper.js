@@ -16,6 +16,8 @@ const sendNotificationToDevice = async (fcmToken, title, body, data = {}) => {
       },
       data: {
         ...data,
+        title: title, // Add title to data payload for background handling
+        body: body,   // Add body to data payload for background handling
         timestamp: Date.now().toString(),
       },
       token: fcmToken,
@@ -25,6 +27,9 @@ const sendNotificationToDevice = async (fcmToken, title, body, data = {}) => {
           channelId: 'upvc-default-channel',
           sound: 'default',
           priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+          defaultLightSettings: true,
         },
       },
       apns: {
@@ -32,6 +37,10 @@ const sendNotificationToDevice = async (fcmToken, title, body, data = {}) => {
           aps: {
             sound: 'default',
             badge: 1,
+            alert: {
+              title: title,
+              body: body,
+            },
           },
         },
       },
