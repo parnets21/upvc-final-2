@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
 
 // Email configuration
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: 'upvcconnect2025@gmail.com',
