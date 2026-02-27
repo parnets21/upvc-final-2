@@ -37,12 +37,24 @@ const priceComparisonSchema = new Schema({
   }
 });
 
-// Schema for Price Page Content (header subtitle text)
+// Schema for Price Page Content (header subtitle text and pricing info)
 const pricePageContentSchema = new Schema({
   headerSubtitle: {
     type: String,
     required: true,
     default: 'When you are investing in uPVC windows & doors the price can vary based on several important factors- heres what goes into it'
+  },
+  economyPrice: {
+    type: String,
+    default: 'Starts at Rs. 350+GST'
+  },
+  midPremiumPrice: {
+    type: String,
+    default: 'Starts at Rs. 450+GST'
+  },
+  premiumPrice: {
+    type: String,
+    default: 'Starts at Rs. 550+GST'
   },
   updatedAt: {
     type: Date,

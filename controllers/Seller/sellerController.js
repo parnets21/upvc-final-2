@@ -9,6 +9,11 @@ const {
   sendSellerApplicationRejectionNotification,
   sendSellerApplicationApprovalNotification,
 } = require('../../utils/notificationHelper');
+const {
+  sendDocumentRejectionEmail,
+  sendSellerRejectionEmail,
+  sendDocumentApprovalEmail
+} = require('../../utils/emailHelper');
 
 // Register new seller
 exports.registerSeller = async (req, res) => {
@@ -484,6 +489,15 @@ exports.rejectSeller = async (req, res) => {
     // Send notification to seller if FCM token exists
     if (seller.fcmToken) {
       await sendSellerApplicationRejectionNotification(seller.fcmToken, reason);
+    }
+
+    // Send email notification
+    if (seller.email) {
+      await sendSellerRejectionEmail(
+        seller.email,
+        seller.companyName || seller.contactPerson || 'Seller',
+        reason
+      );
     }
 
     res.status(200).json({
@@ -1063,6 +1077,18 @@ exports.approveDocument = async (req, res) => {
       await sendDocumentApprovalNotification(seller.fcmToken, documentType);
     }
 
+    // Send email notification
+    if (seller.email) {
+      const documentTypeFormatted = documentType
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, str => str.toUpperCase());
+      await sendDocumentApprovalEmail(
+        seller.email,
+        seller.companyName || seller.contactPerson || 'Seller',
+        documentTypeFormatted
+      );
+    }
+
     res.status(200).json({
       success: true,
       message: 'Document approved successfully',
@@ -1127,9 +1153,22 @@ exports.rejectDocument = async (req, res) => {
     
     await seller.save();
 
-    // Send notification to seller if FCM token exists
+    // Send push notification to seller if FCM token exists
     if (seller.fcmToken) {
       await sendDocumentRejectionNotification(seller.fcmToken, documentType, reason);
+    }
+
+    // Send email notification
+    if (seller.email) {
+      const documentTypeFormatted = documentType
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, str => str.toUpperCase());
+      await sendDocumentRejectionEmail(
+        seller.email,
+        seller.companyName || seller.contactPerson || 'Seller',
+        documentTypeFormatted,
+        reason
+      );
     }
 
     res.status(200).json({

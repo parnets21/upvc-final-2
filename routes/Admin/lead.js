@@ -39,7 +39,7 @@ router.post('/', authenticate, (req, res, next) => {
   next();
 }, leadController.createLead);
 
-// GET /api/seller/lead - Get all leads (Seller side)
+
 router.get('/', (req, res, next) => {
   console.log('\n🟢 [ROUTE] GET /api/seller/lead - Route hit!');
   console.log('🟢 [ROUTE] Request received at:', new Date().toISOString());

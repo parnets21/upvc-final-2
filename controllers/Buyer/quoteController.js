@@ -184,7 +184,22 @@ exports.convertToLead = async (req, res) => {
       pricePerSqft
     });
 
+    console.log('🔍 Lead before save:', {
+      availableSlots: lead.availableSlots,
+      maxSlots: lead.maxSlots,
+      seller: lead.seller,
+      sellerLength: lead.seller?.length || 0
+    });
+
     await lead.save();
+
+    console.log('✅ Lead after save:', {
+      _id: lead._id,
+      availableSlots: lead.availableSlots,
+      maxSlots: lead.maxSlots,
+      seller: lead.seller,
+      sellerLength: lead.seller?.length || 0
+    });
 
     // Optionally delete the quotes after creating lead
     await Quote.deleteMany({ buyer: buyerId });

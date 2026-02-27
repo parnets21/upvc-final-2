@@ -138,17 +138,38 @@ const updateColorVideo = async (req, res) => {
       updateData.mimetype = file.mimetype;
       updateData.filesize = file.size;
     }
-    if (req.files?.sponsorLogo?.[0]) { 
-      updateData.sponsorLogo = req.files.sponsorLogo[0].path;
+    
+    // Handle sponsor logo upload
+    if (req.files?.sponsorLogo?.[0]) {
+      const sponsorLogoPath = normalizeFilePath(req.files.sponsorLogo[0].path);
+      
+      // Delete old sponsor logo if exists
+      if (existing.sponsorLogo) {
+        const oldSponsorPath = normalizeFilePath(existing.sponsorLogo);
+        if (fs.existsSync(oldSponsorPath)) {
+          fs.unlinkSync(path.resolve(oldSponsorPath));
+        }
+      }
+      
+      updateData.sponsorLogo = sponsorLogoPath;
+      console.log('✅ Sponsor logo updated:', sponsorLogoPath);
     }
 
     const updated = await ColorVideo.findByIdAndUpdate(videoId, updateData, {
       new: true
     });
 
+    // Normalize paths in response
+    const normalizedResponse = {
+      ...updated._doc,
+      src: normalizeFilePath(updated.src),
+      filepath: normalizeFilePath(updated.filepath),
+      sponsorLogo: updated.sponsorLogo ? normalizeFilePath(updated.sponsorLogo) : null
+    };
+
     res.status(200).json({
       message: 'Color video updated successfully',
-      data: updated
+      data: normalizedResponse
     });
   } catch (error) {
     console.error('Update error:', error);

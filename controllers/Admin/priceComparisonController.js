@@ -118,7 +118,10 @@ exports.getPricePageContent = async (req, res) => {
     // If no content exists, create default
     if (!content) {
       content = new PricePageContent({
-        headerSubtitle: 'When you are investing in uPVC windows & doors the price can vary based on several important factors- heres what goes into it'
+        headerSubtitle: 'When you are investing in uPVC windows & doors the price can vary based on several important factors- heres what goes into it',
+        economyPrice: 'Starts at Rs. 350+GST',
+        midPremiumPrice: 'Starts at Rs. 450+GST',
+        premiumPrice: 'Starts at Rs. 550+GST'
       });
       await content.save();
     }
@@ -135,23 +138,25 @@ exports.getPricePageContent = async (req, res) => {
 // Update price page content
 exports.updatePricePageContent = async (req, res) => {
   try {
-    const { headerSubtitle } = req.body;
-    
-    if (!headerSubtitle) {
-      return res.status(400).json({ 
-        error: 'headerSubtitle is required' 
-      });
-    }
+    const { headerSubtitle, economyPrice, midPremiumPrice, premiumPrice } = req.body;
     
     let content = await PricePageContent.findOne();
     
     if (!content) {
       // Create new if doesn't exist
-      content = new PricePageContent({ headerSubtitle });
+      content = new PricePageContent({ 
+        headerSubtitle: headerSubtitle || 'When you are investing in uPVC windows & doors the price can vary based on several important factors- heres what goes into it',
+        economyPrice: economyPrice || 'Starts at Rs. 350+GST',
+        midPremiumPrice: midPremiumPrice || 'Starts at Rs. 450+GST',
+        premiumPrice: premiumPrice || 'Starts at Rs. 550+GST'
+      });
       await content.save();
     } else {
       // Update existing
-      content.headerSubtitle = headerSubtitle;
+      if (headerSubtitle !== undefined) content.headerSubtitle = headerSubtitle;
+      if (economyPrice !== undefined) content.economyPrice = economyPrice;
+      if (midPremiumPrice !== undefined) content.midPremiumPrice = midPremiumPrice;
+      if (premiumPrice !== undefined) content.premiumPrice = premiumPrice;
       content.updatedAt = Date.now();
       await content.save();
     }
