@@ -280,6 +280,100 @@ exports.createLead = async (req, res) => {
     console.log('  ✅ Should be visible to sellers:', lead.status === 'new' && lead.availableSlots > 0);
     console.log('========================================\n');
 
+    // Send notifications to matching sellers
+    console.log('\n📢 [NOTIFICATION] Starting to notify matching sellers...');
+    try {
+      const Seller = require('../../models/Seller/Seller');
+      const Category = require('../../models/Admin/Category');
+      const { sendNewLeadNotification } = require('../../utils/notificationHelper');
+      const { sendNewLeadEmail } = require('../../utils/emailHelper');
+
+      // Get category details
+      const category = await Category.findById(categoryId);
+      const categoryName = category ? category.name : 'N/A';
+
+      // Find matching sellers based on:
+      // 1. Same city/area as the lead
+      // 2. Status is 'approved'
+      // 3. isActive is true
+      const leadLocation = projectInfo?.area || projectInfo?.address || projectInfo?.city || '';
+      
+      console.log('🔍 Searching for sellers in location:', leadLocation);
+      
+      const matchingSellers = await Seller.find({
+        city: leadLocation,
+        status: 'approved',
+        isActive: true
+      });
+
+      console.log(`✅ Found ${matchingSellers.length} matching sellers`);
+
+      if (matchingSellers.length > 0) {
+        // Prepare lead data for notifications
+        const leadData = {
+          leadId: lead._id.toString(),
+          categoryName: categoryName,
+          location: leadLocation,
+          totalSqft: totalSqft,
+          availableSlots: lead.availableSlots,
+          maxSlots: lead.maxSlots,
+          buyerName: buyer.name || 'A buyer'
+        };
+
+        // Send notifications to each matching seller
+        let notificationsSent = 0;
+        let emailsSent = 0;
+
+        for (const seller of matchingSellers) {
+          console.log(`\n📤 Notifying seller: ${seller.companyName || seller.phoneNumber}`);
+          
+          // Send Firebase push notification if FCM token exists
+          if (seller.fcmToken) {
+            try {
+              await sendNewLeadNotification(seller.fcmToken, {
+                leadId: lead._id.toString(),
+                buyerName: buyer.name || 'a buyer',
+                city: leadLocation
+              });
+              notificationsSent++;
+              console.log(`  ✅ Push notification sent to ${seller.companyName}`);
+            } catch (notifError) {
+              console.error(`  ❌ Failed to send push notification to ${seller.companyName}:`, notifError.message);
+            }
+          } else {
+            console.log(`  ⚠️ No FCM token for ${seller.companyName}`);
+          }
+
+          // Send email notification if email exists
+          if (seller.email) {
+            try {
+              await sendNewLeadEmail(
+                seller.email,
+                seller.companyName || seller.contactPerson || 'Seller',
+                leadData
+              );
+              emailsSent++;
+              console.log(`  ✅ Email sent to ${seller.email}`);
+            } catch (emailError) {
+              console.error(`  ❌ Failed to send email to ${seller.email}:`, emailError.message);
+            }
+          } else {
+            console.log(`  ⚠️ No email for ${seller.companyName}`);
+          }
+        }
+
+        console.log('\n📊 Notification Summary:');
+        console.log(`  📱 Push notifications sent: ${notificationsSent}/${matchingSellers.length}`);
+        console.log(`  📧 Emails sent: ${emailsSent}/${matchingSellers.length}`);
+      } else {
+        console.log('⚠️ No matching sellers found for this lead');
+      }
+    } catch (notificationError) {
+      console.error('❌ Error sending notifications to sellers:', notificationError);
+      // Don't fail the lead creation if notifications fail
+    }
+    console.log('========================================\n');
+
     res.status(201).json({
       success: true,
       message: 'Lead created successfully',
