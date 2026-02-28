@@ -293,18 +293,45 @@ exports.createLead = async (req, res) => {
       const categoryName = category ? category.name : 'N/A';
 
       // Find matching sellers based on:
-      // 1. Same city/area as the lead
+      // 1. Same pincode OR city/area as the lead (case-insensitive)
       // 2. Status is 'approved'
       // 3. isActive is true
-      const leadLocation = projectInfo?.area || projectInfo?.address || projectInfo?.city || '';
+      const leadPincode = projectInfo?.pincode || '';
+      const leadArea = projectInfo?.area || '';
+      const leadAddress = projectInfo?.address || '';
       
-      console.log('🔍 Searching for sellers in location:', leadLocation);
+      console.log('🔍 Searching for sellers with:');
+      console.log('  Pincode:', leadPincode);
+      console.log('  Area:', leadArea);
+      console.log('  Address:', leadAddress);
       
-      const matchingSellers = await Seller.find({
-        city: leadLocation,
+      // Build query to match by pincode OR city (case-insensitive)
+      const sellerQuery = {
         status: 'approved',
-        isActive: true
-      });
+        isActive: true,
+        $or: []
+      };
+      
+      // Match by pincode if available
+      if (leadPincode) {
+        sellerQuery.$or.push({ pinCode: leadPincode });
+      }
+      
+      // Match by city (case-insensitive) - try area first, then address
+      if (leadArea) {
+        sellerQuery.$or.push({ city: new RegExp(leadArea, 'i') });
+      }
+      if (leadAddress && leadAddress !== leadArea) {
+        sellerQuery.$or.push({ city: new RegExp(leadAddress, 'i') });
+      }
+      
+      // If no matching criteria, don't search (avoid notifying all sellers)
+      if (sellerQuery.$or.length === 0) {
+        console.log('⚠️ No location criteria available for seller matching');
+        throw new Error('No location criteria for seller matching');
+      }
+      
+      const matchingSellers = await Seller.find(sellerQuery);
 
       console.log(`✅ Found ${matchingSellers.length} matching sellers`);
 
@@ -313,7 +340,7 @@ exports.createLead = async (req, res) => {
         const leadData = {
           leadId: lead._id.toString(),
           categoryName: categoryName,
-          location: leadLocation,
+          location: leadArea || leadAddress || 'N/A',
           totalSqft: totalSqft,
           availableSlots: lead.availableSlots,
           maxSlots: lead.maxSlots,
@@ -333,7 +360,7 @@ exports.createLead = async (req, res) => {
               await sendNewLeadNotification(seller.fcmToken, {
                 leadId: lead._id.toString(),
                 buyerName: buyer.name || 'a buyer',
-                city: leadLocation
+                city: leadArea || leadAddress || 'your area'
               });
               notificationsSent++;
               console.log(`  ✅ Push notification sent to ${seller.companyName}`);
