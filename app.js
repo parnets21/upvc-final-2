@@ -108,6 +108,7 @@ app.use('/api/brands', require('./routes/brandRoutes'));
 app.use('/api/seller/managment', require('./routes/Admin/sellerManagement'));
 app.use('/api/seller/lead', require('./routes/Admin/lead'));
 app.use('/api/admin/leads', require('./routes/Admin/lead')); // Admin lead routes
+app.use('/api/admin/notifications', require('./routes/Admin/notifications')); // Admin notifications (must be before /api/admin)
 app.use('/api/admin', require('./routes/Admin/buyerManagement'));
 
 app.use('/api/sellers', require('./routes/Seller/sellerRoutes')); 

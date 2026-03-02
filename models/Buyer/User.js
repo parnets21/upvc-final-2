@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema({
   mobileNumber: { type: String, required: true, unique: true },
   otp: { type: String },
   otpExpires: { type: Date },
+  fcmToken: { type: String, required: false }, // FCM token for push notifications
 }, { timestamps: true });
 
 // Hash password before saving

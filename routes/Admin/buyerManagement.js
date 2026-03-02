@@ -8,6 +8,9 @@ router.get('/buyers/:buyerId', buyerController.getBuyerById);
 router.put('/buyers/:buyerId', buyerController.updateBuyer);
 router.delete('/buyers/:buyerId', buyerController.deleteBuyer);
 
+// Buyer FCM token update (requires buyer authentication)
+router.post('/buyers/update-fcm-token', buyerController.updateBuyerFCMToken);
+
 module.exports = router;
 
 

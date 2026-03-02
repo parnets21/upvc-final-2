@@ -150,6 +150,46 @@ exports.updateBuyer = async (req, res) => {
   }
 };
 
+// Update buyer FCM token
+exports.updateBuyerFCMToken = async (req, res) => {
+  try {
+    const { fcmToken } = req.body;
+    const buyerId = req.user._id; // From auth middleware
+
+    if (!fcmToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'FCM token is required'
+      });
+    }
+
+    const buyer = await User.findByIdAndUpdate(
+      buyerId,
+      { fcmToken },
+      { new: true }
+    );
+
+    if (!buyer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Buyer not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'FCM token updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating buyer FCM token:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
 // Delete buyer
 exports.deleteBuyer = async (req, res) => {
   try {
