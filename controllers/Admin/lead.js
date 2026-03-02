@@ -100,6 +100,33 @@ exports.createLead = async (req, res) => {
     console.log('📧 Buyer Email:', buyer.email);
     console.log('📱 Buyer Mobile:', buyer.mobileNumber);
 
+    // ⭐ CHECK FOR ACTIVE LEADS (48-HOUR VALIDATION) ⭐
+    console.log('\n🔍 Checking for active leads within 48 hours...');
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const existingLead = await Lead.findOne({
+      buyer: req.user._id,
+      createdAt: { $gt: fortyEightHoursAgo }
+    }).sort({ createdAt: -1 });
+
+    if (existingLead) {
+      const leadCreatedAt = new Date(existingLead.createdAt);
+      const hoursRemaining = Math.ceil((48 - (Date.now() - leadCreatedAt) / (1000 * 60 * 60)));
+      
+      console.log('🚫 ACTIVE LEAD FOUND - BLOCKING REQUEST');
+      console.log('  Lead ID:', existingLead._id);
+      console.log('  Created At:', leadCreatedAt);
+      console.log('  Hours Remaining:', hoursRemaining);
+      
+      return res.status(400).json({
+        success: false,
+        message: `You already have an active lead. Please wait ${hoursRemaining} hours before creating a new one.`,
+        hoursRemaining,
+        existingLeadId: existingLead._id
+      });
+    }
+    
+    console.log('✅ No active leads found. Proceeding with lead creation...');
+
     if (!categoryId) {
       return res.status(400).json({ 
         success: false, 
@@ -240,8 +267,7 @@ exports.createLead = async (req, res) => {
       maxSlots: maxSlots,
       dynamicSlotPrice: dynamicSlotPrice,
       overProfit: overProfit,
-      status: 'new', // Explicitly set status to 'new' to ensure it's visible to sellers
-      // pricePerSqft: totalSqft > 0 ? 6250 / (totalSqft * 6) : 0,
+      status: 'new',
     });
 
     console.log('\n💾 Saving lead to database...');
@@ -262,12 +288,15 @@ exports.createLead = async (req, res) => {
     console.log('📦 Total Quantity:', totalQuantity);
     console.log('🎰 Available Slots:', lead.availableSlots);
     console.log('🎰 Max Slots:', lead.maxSlots);
-    console.log('💰 Dynamic Slot Price:', lead.dynamicSlotPrice);
-    console.log('💰 Base Price Per Sqft:', lead.basePricePerSqft);
-    console.log('📊 Status:', lead.status, '(Should be "new" for seller visibility)');
-    console.log('📅 Created At:', lead.createdAt);
-    console.log('📍 Project Address:', projectInfo?.address);
-    console.log('📍 Project Area:', projectInfo?.area);
+    console.log('� Dynamic Slot Price:', lead.dynamicSlotPrice);
+    console.log('� Brase Price Per Sqft:', lead.basePricePerSqft);
+    console.log('� Base Value:', baseValue);
+    console.log('� Target Profit:', targetProfit);
+    console.log('💰 Over Profit:', lead.overProfit);
+    console.log('� Status:', lead.status);
+    console.log('� Created At:', lead.createdAt);
+    console.log('� Project Address:', projectInfo?.address);
+    console.log('� Project Area:', projectInfo?.area);
     console.log('📍 Pincode:', projectInfo?.pincode);
     console.log('🏷️ Category ID:', categoryId);
     console.log('📋 Contact Name:', contactInfo?.name);
@@ -276,7 +305,6 @@ exports.createLead = async (req, res) => {
     console.log('\n🔍 Lead Visibility Check:');
     console.log('  ✅ Status is "new":', lead.status === 'new');
     console.log('  ✅ Has available slots:', lead.availableSlots > 0);
-    console.log('  ✅ Created within last 48h:', true, '(just created)');
     console.log('  ✅ Should be visible to sellers:', lead.status === 'new' && lead.availableSlots > 0);
     console.log('========================================\n');
 
@@ -389,9 +417,7 @@ exports.createLead = async (req, res) => {
           }
         }
 
-        console.log('\n📊 Notification Summary:');
-        console.log(`  📱 Push notifications sent: ${notificationsSent}/${matchingSellers.length}`);
-        console.log(`  📧 Emails sent: ${emailsSent}/${matchingSellers.length}`);
+       
       } else {
         console.log('⚠️ No matching sellers found for this lead');
       }
@@ -399,7 +425,7 @@ exports.createLead = async (req, res) => {
       console.error('❌ Error sending notifications to sellers:', notificationError);
       // Don't fail the lead creation if notifications fail
     }
-    console.log('========================================\n');
+
 
     res.status(201).json({
       success: true,
@@ -408,13 +434,6 @@ exports.createLead = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('\n❌ [BUYER BACKEND] Error creating lead');
-    console.error('📅 Timestamp:', new Date().toISOString());
-    console.error('📝 Error Message:', error.message);
-    console.error('📊 Error Name:', error.name);
-    console.error('📦 Error Stack:', error.stack);
-    console.error('🔍 Error Details:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-    console.error('========================================\n');
     res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -425,16 +444,7 @@ exports.createLead = async (req, res) => {
 
 // Get all leads with filters
 exports.getAllLeads = async (req, res) => {
-  // IMMEDIATE LOG - This will definitely show up
-  console.log('\n');
-  console.log('========================================');
-  console.log('🟢🟢🟢 [SELLER BACKEND] getAllLeads FUNCTION CALLED 🟢🟢🟢');
-  console.log('========================================');
-  console.log('📅 Timestamp:', new Date().toISOString());
-  console.log('📋 Request Query:', JSON.stringify(req.query, null, 2));
-  console.log('👤 Seller from token:', req.seller?._id || 'No seller token (public access)');
-  
-  try {
+    try {
     
     const { status, buyerId, sellerId, categoryId, page = 1, limit = 100 } = req.query;
     const filter = {};
@@ -589,14 +599,7 @@ exports.getAllLeads = async (req, res) => {
       return lead;
     });
 
-    console.log('\n✅ [SELLER BACKEND] Sending response');
-    console.log('📊 Response Summary:');
-    console.log('  Success: true');
-    console.log('  Total Leads: ', total);
-    console.log('  Page: ', pageNum);
-    console.log('  Limit: ', pageSize);
-    console.log('  Count in Response: ', normalizedLeads.length);
-    console.log('========================================\n');
+   
     
     res.status(200).json({
       success: true,
@@ -607,12 +610,7 @@ exports.getAllLeads = async (req, res) => {
       leads: normalizedLeads
     });
   } catch (error) {
-    console.error('\n❌ [SELLER BACKEND] Error fetching leads');
-    console.error('📅 Timestamp:', new Date().toISOString());
-    console.error('📝 Error Message:', error.message);
-    console.error('📊 Error Name:', error.name);
-    console.error('📦 Error Stack:', error.stack);
-    console.error('========================================\n');
+   
     
     res.status(500).json({
       success: false,
