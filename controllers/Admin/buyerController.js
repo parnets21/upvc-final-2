@@ -153,15 +153,23 @@ exports.updateBuyer = async (req, res) => {
 // Update buyer FCM token
 exports.updateBuyerFCMToken = async (req, res) => {
   try {
+    console.log('=== UPDATE BUYER FCM TOKEN REQUEST ===');
+    console.log('Request body:', req.body);
+    console.log('User from auth middleware:', req.user?._id);
+    
     const { fcmToken } = req.body;
     const buyerId = req.user._id; // From auth middleware
 
     if (!fcmToken) {
+      console.log('ERROR: No FCM token provided');
       return res.status(400).json({
         success: false,
         message: 'FCM token is required'
       });
     }
+
+    console.log(`Updating FCM token for buyer ${buyerId}`);
+    console.log(`FCM Token: ${fcmToken.substring(0, 30)}...`);
 
     const buyer = await User.findByIdAndUpdate(
       buyerId,
@@ -170,12 +178,14 @@ exports.updateBuyerFCMToken = async (req, res) => {
     );
 
     if (!buyer) {
+      console.log('ERROR: Buyer not found');
       return res.status(404).json({
         success: false,
         message: 'Buyer not found'
       });
     }
 
+    console.log('SUCCESS: FCM token updated for buyer:', buyer.mobileNumber);
     res.status(200).json({
       success: true,
       message: 'FCM token updated successfully'
