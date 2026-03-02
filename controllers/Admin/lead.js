@@ -313,7 +313,7 @@ exports.createLead = async (req, res) => {
     try {
       const Seller = require('../../models/Seller/Seller');
       const Category = require('../../models/Admin/Category');
-      const { sendNewLeadNotification } = require('../../utils/notificationHelper');
+      const { sendNewLeadNotification, saveSellerNotification } = require('../../utils/notificationHelper');
       const { sendNewLeadEmail } = require('../../utils/emailHelper');
 
       // Get category details
@@ -399,6 +399,14 @@ exports.createLead = async (req, res) => {
             console.log(`  ⚠️ No FCM token for ${seller.companyName}`);
           }
 
+          // Save notification to database
+          try {
+            await saveSellerNotification(seller._id, leadData);
+            console.log(`  ✅ Notification saved to database for ${seller.companyName}`);
+          } catch (dbError) {
+            console.error(`  ❌ Failed to save notification to database:`, dbError.message);
+          }
+
           // Send email notification if email exists
           if (seller.email) {
             try {
@@ -416,6 +424,10 @@ exports.createLead = async (req, res) => {
             console.log(`  ⚠️ No email for ${seller.companyName}`);
           }
         }
+
+        console.log(`\n📊 Notification Summary:`);
+        console.log(`  📱 Push notifications sent: ${notificationsSent}/${matchingSellers.length}`);
+        console.log(`  📧 Emails sent: ${emailsSent}/${matchingSellers.length}`);
 
        
       } else {
