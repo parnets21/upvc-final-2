@@ -34,12 +34,19 @@ exports.sendBulkNotification = async (req, res) => {
       fcmTokens = users.map(seller => seller.fcmToken).filter(token => token);
     }
 
+    // Remove duplicate FCM tokens (in case same user has multiple entries or same token)
+    fcmTokens = [...new Set(fcmTokens)];
+
     if (fcmTokens.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
-        message: `No ${userType}s found with FCM tokens`
+        message: `No ${userType}s found with FCM tokens. Users need to log in to the app to receive notifications.`,
+        sentCount: 0,
+        totalUsers: 0
       });
     }
+
+    console.log(`Sending notification to ${fcmTokens.length} unique ${userType}(s)`);
 
     // Prepare notification payload
     const message = {
