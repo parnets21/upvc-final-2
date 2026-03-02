@@ -1,21 +1,9 @@
-const nodemailerModule = require('nodemailer');
-
-// Handle both CommonJS and ES module imports
-const nodemailer = nodemailerModule.default || nodemailerModule;
+const nodemailer = require('nodemailer');
 
 // Create email transporter
 const createTransporter = () => {
-  // Verify nodemailer is loaded correctly
-  if (!nodemailer || typeof nodemailer.createTransporter !== 'function') {
-    console.error('❌ Nodemailer not loaded correctly!');
-    console.error('Nodemailer type:', typeof nodemailer);
-    console.error('Nodemailer keys:', nodemailer ? Object.keys(nodemailer) : 'null');
-    console.error('Module type:', typeof nodemailerModule);
-    console.error('Module keys:', nodemailerModule ? Object.keys(nodemailerModule) : 'null');
-    throw new Error('Nodemailer module not loaded correctly. Please run: npm install nodemailer');
-  }
-
-  return nodemailer.createTransporter({
+  // Note: The function is called createTransport (not createTransporter)
+  return nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.EMAIL_USER || 'your-email@gmail.com',
