@@ -1,6 +1,6 @@
 const User = require('../../models/Buyer/User');
 const Seller = require('../../models/Seller/Seller');
-const admin = require('../../config/firebase'); // Use existing Firebase config
+const { admin } = require('../../config/firebase'); // Use existing Firebase config
 
 // Send push notification to all buyers or sellers
 exports.sendBulkNotification = async (req, res) => {
