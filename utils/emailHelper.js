@@ -2,6 +2,13 @@ const nodemailer = require('nodemailer');
 
 // Create email transporter
 const createTransporter = () => {
+  // Verify nodemailer is loaded correctly
+  if (!nodemailer || typeof nodemailer.createTransporter !== 'function') {
+    console.error('❌ Nodemailer not loaded correctly!');
+    console.error('Nodemailer object:', nodemailer);
+    throw new Error('Nodemailer module not loaded correctly. Please run: npm install nodemailer');
+  }
+
   return nodemailer.createTransporter({
     service: 'gmail',
     auth: {
