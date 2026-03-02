@@ -1,6 +1,59 @@
 const User = require('../../models/Buyer/User');
 const Seller = require('../../models/Seller/Seller');
+const Notification = require('../../models/Notification');
 const { admin } = require('../../config/firebase'); // Use existing Firebase config
+
+// Get notifications for a specific user
+exports.getUserNotifications = async (req, res) => {
+  try {
+    const { userType } = req.params; // 'buyer' or 'seller'
+    const userId = req.user?._id; // From auth middleware (optional)
+
+    console.log('=== GET USER NOTIFICATIONS ===');
+    console.log('User Type:', userType);
+    console.log('User ID:', userId);
+
+    if (!['buyer', 'seller'].includes(userType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'User type must be either "buyer" or "seller"'
+      });
+    }
+
+    // Get notifications for this user type
+    // Include both broadcast notifications (userId: null) and user-specific notifications
+    const query = {
+      userType: userType,
+      $or: [
+        { userId: null }, // Broadcast notifications
+        { userId: userId } // User-specific notifications
+      ]
+    };
+
+    console.log('Query:', JSON.stringify(query));
+
+    const notifications = await Notification.find(query)
+      .sort({ createdAt: -1 })
+      .limit(50) // Limit to last 50 notifications
+      .lean();
+
+    console.log(`Found ${notifications.length} notifications`);
+
+    res.status(200).json({
+      success: true,
+      notifications: notifications,
+      count: notifications.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
 
 // Send push notification to all buyers or sellers
 exports.sendBulkNotification = async (req, res) => {
@@ -109,6 +162,22 @@ exports.sendBulkNotification = async (req, res) => {
       }
     }
 
+    // Save notification to database for history
+    try {
+      await Notification.create({
+        title: title,
+        message: description,
+        userType: userType,
+        type: 'admin_notification',
+        userId: null, // Broadcast to all users
+        userModel: userType === 'buyer' ? 'User' : 'Seller'
+      });
+      console.log('Notification saved to database');
+    } catch (dbError) {
+      console.error('Error saving notification to database:', dbError);
+      // Continue even if database save fails
+    }
+
     res.status(200).json({
       success: true,
       message: 'Notifications sent successfully',
@@ -119,6 +188,107 @@ exports.sendBulkNotification = async (req, res) => {
 
   } catch (error) {
     console.error('Error sending bulk notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Send notification to individual user
+exports.sendIndividualNotification = async (req, res) => {
+  try {
+    const { userId, userType, title, description } = req.body;
+
+    // Validate input
+    if (!userId || !userType || !title || !description) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID, user type, title, and description are required'
+      });
+    }
+
+    if (!['buyer', 'seller'].includes(userType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'User type must be either "buyer" or "seller"'
+      });
+    }
+
+    // Get the user and their FCM token
+    let user;
+    if (userType === 'buyer') {
+      user = await User.findById(userId).select('fcmToken mobileNumber');
+    } else {
+      user = await Seller.findById(userId).select('fcmToken mobileNumber');
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: `${userType} not found`
+      });
+    }
+
+    if (!user.fcmToken) {
+      return res.status(400).json({
+        success: false,
+        message: `${userType} does not have a registered device for notifications`
+      });
+    }
+
+    console.log(`Sending notification to individual ${userType}: ${user.mobileNumber}`);
+
+    // Prepare notification payload
+    const message = {
+      notification: {
+        title: title,
+        body: description,
+      },
+      data: {
+        type: 'admin_notification',
+        userType: userType,
+        timestamp: new Date().toISOString()
+      },
+      token: user.fcmToken
+    };
+
+    // Send notification
+    try {
+      await admin.messaging().send(message);
+      console.log('Notification sent successfully');
+    } catch (fcmError) {
+      console.error('Error sending FCM notification:', fcmError);
+      // If token is invalid, clean it up
+      if (fcmError.code === 'messaging/invalid-registration-token' || 
+          fcmError.code === 'messaging/registration-token-not-registered') {
+        if (userType === 'buyer') {
+          await User.findByIdAndUpdate(userId, { $unset: { fcmToken: "" } });
+        } else {
+          await Seller.findByIdAndUpdate(userId, { $unset: { fcmToken: "" } });
+        }
+      }
+      throw fcmError;
+    }
+
+    // Save notification to database
+    await Notification.create({
+      title: title,
+      message: description,
+      userType: userType,
+      type: 'admin_notification',
+      userId: userId,
+      userModel: userType === 'buyer' ? 'User' : 'Seller'
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Notification sent successfully'
+    });
+
+  } catch (error) {
+    console.error('Error sending individual notification:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
