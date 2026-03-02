@@ -489,6 +489,17 @@ exports.getAllLeads = async (req, res) => {
       filter.category = categoryId;
       console.log('✅ Category filter applied:', categoryId);
     }
+    // Also check for 'category' param (from frontend)
+    if (req.query.category && !categoryId) {
+      filter.category = req.query.category;
+      console.log('✅ Category filter applied:', req.query.category);
+    }
+    // Brand filter - filter by seller's brandOfProfileUsed
+    if (req.query.brand) {
+      // We need to filter leads where at least one seller has this brand
+      // This is complex, so we'll do it after fetching
+      console.log('✅ Brand filter will be applied:', req.query.brand);
+    }
     if (sellerId) {
       filter['seller.sellerId'] = sellerId;
       console.log('✅ Seller filter applied:', sellerId);
@@ -597,7 +608,7 @@ exports.getAllLeads = async (req, res) => {
     }
 
     // Normalize status values in the results
-    const normalizedLeads = leads.map(lead => {
+    let normalizedLeads = leads.map(lead => {
       const statusMap = {
         'active': 'in-progress',
         'pending': 'new',
@@ -610,6 +621,21 @@ exports.getAllLeads = async (req, res) => {
       
       return lead;
     });
+
+    // Apply brand filter if provided (filter by seller's brandOfProfileUsed)
+    if (req.query.brand) {
+      const brandFilter = req.query.brand;
+      normalizedLeads = normalizedLeads.filter(lead => {
+        // Check if any seller in this lead has the specified brand
+        if (lead.seller && lead.seller.length > 0) {
+          return lead.seller.some(s => 
+            s.sellerId && s.sellerId.brandOfProfileUsed === brandFilter
+          );
+        }
+        return false;
+      });
+      console.log(`✅ Brand filter applied: ${brandFilter}, remaining leads: ${normalizedLeads.length}`);
+    }
 
    
     
