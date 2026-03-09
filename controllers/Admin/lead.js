@@ -1955,8 +1955,9 @@ exports.getAllLeadsAdmin = async (req, res) => {
       Lead.countDocuments(filter),
       Lead.find(filter)
         .populate('buyer', 'name email phoneNumber mobileNumber')
-        .populate('seller.sellerId', 'companyName brandOfProfileUsed contactPerson phoneNumber city businessProfileVideo visitingCard yearsInBusiness status isActive')
+        .populate('seller.sellerId', 'companyName brandOfProfileUsed contactPerson mobileNumber email phoneNumber city businessProfileVideo visitingCard yearsInBusiness status isActive')
         .populate('category', 'name description')
+        .populate('categoryId', 'name description')
         .populate('quotes.product', 'title features')
         .sort({ createdAt: -1 })
         .skip((pageNum - 1) * pageSize)
@@ -1964,7 +1965,7 @@ exports.getAllLeadsAdmin = async (req, res) => {
         .lean()
     ]);
     
-    // Enhance leads with calculated fields
+    // Enhance leads with calculated fields and flatten buyer info
     const enhancedLeads = leads.map(lead => {
       const now = new Date();
       const createdAt = new Date(lead.createdAt);
@@ -1978,6 +1979,14 @@ exports.getAllLeadsAdmin = async (req, res) => {
       
       return {
         ...lead,
+        // Flatten buyer information for easier access
+        name: lead.contactInfo?.name || 'N/A',
+        mobileNumber: lead.contactInfo?.contactNumber || lead.contactInfo?.whatsappNumber || 'N/A',
+        email: lead.contactInfo?.email || 'N/A',
+        city: lead.projectInfo?.area || 'N/A',
+        location: lead.projectInfo?.name || 'N/A',
+        address: lead.projectInfo?.address || 'N/A',
+        pincode: lead.projectInfo?.pincode || 'N/A',
         estimatedValue: lead.totalSqft * (lead.basePricePerSqft || 10.5),
         purchaseCount: lead.seller?.length || 0,
         totalRevenue: (lead.seller?.length || 0) * (lead.dynamicSlotPrice || 0),
