@@ -1957,7 +1957,6 @@ exports.getAllLeadsAdmin = async (req, res) => {
         .populate('buyer', 'name email phoneNumber mobileNumber')
         .populate('seller.sellerId', 'companyName brandOfProfileUsed contactPerson mobileNumber email phoneNumber city businessProfileVideo visitingCard yearsInBusiness status isActive')
         .populate('category', 'name description')
-        .populate('categoryId', 'name description')
         .populate('quotes.product', 'title features')
         .sort({ createdAt: -1 })
         .skip((pageNum - 1) * pageSize)
@@ -1987,6 +1986,8 @@ exports.getAllLeadsAdmin = async (req, res) => {
         location: lead.projectInfo?.name || 'N/A',
         address: lead.projectInfo?.address || 'N/A',
         pincode: lead.projectInfo?.pincode || 'N/A',
+        // Keep categoryId for backward compatibility
+        categoryId: lead.category,
         estimatedValue: lead.totalSqft * (lead.basePricePerSqft || 10.5),
         purchaseCount: lead.seller?.length || 0,
         totalRevenue: (lead.seller?.length || 0) * (lead.dynamicSlotPrice || 0),
