@@ -239,19 +239,10 @@ exports.createLead = async (req, res) => {
     const baseValue = totalSqft * basePricePerSqft;
     const targetProfit = 6250;
     
-    let maxSlots, dynamicSlotPrice, overProfit;
-    
-    if (baseValue * 6 > targetProfit) {
-      // Calculate optimal slots to keep near target profit
-      maxSlots = Math.max(1, Math.floor(targetProfit / baseValue));
-      dynamicSlotPrice = targetProfit / maxSlots;
-      overProfit = true;
-    } else {
-      // For smaller leads, keep 6 slots
-      maxSlots = 6;
-      dynamicSlotPrice = baseValue;
-      overProfit = false;
-    }
+    // Always use 6 slots — only adjust price per slot
+    const maxSlots = 6;
+    const dynamicSlotPrice = Math.min(baseValue, targetProfit / 6);
+    const overProfit = baseValue * 6 > targetProfit;
 
     const lead = new Lead({
       buyer: req.user._id,
@@ -536,6 +527,8 @@ exports.getAllLeads = async (req, res) => {
     if (leads.length > 0) {
       console.log('\n🔍 DEBUG seller array for first lead:');
       console.log(JSON.stringify(leads[0].seller, null, 2));
+      console.log('🔍 seller[0].sellerId type:', leads[0].seller?.[0]?.sellerId ? typeof leads[0].seller[0].sellerId : 'no sellers');
+      console.log('🔍 seller[0].sellerId value:', leads[0].seller?.[0]?.sellerId);
     }
     
     if (leads.length > 0) {
@@ -643,8 +636,37 @@ exports.getAllLeads = async (req, res) => {
       console.log(`✅ Brand filter applied: ${brandFilter}, remaining leads: ${normalizedLeads.length}`);
     }
 
-   
-    
+    // Manual populate fallback: handles cases where native driver writes bypassed Mongoose populate
+    const sellerIdsToFetch = new Set();
+    normalizedLeads.forEach(lead => {
+      (lead.seller || []).forEach(s => {
+        if (s.sellerId && !s.sellerId.companyName) {
+          sellerIdsToFetch.add(s.sellerId.toString());
+        }
+      });
+    });
+
+    if (sellerIdsToFetch.size > 0) {
+      console.log('🔧 Manual populate needed for seller IDs:', [...sellerIdsToFetch]);
+      const sellerDocs = await Seller.find(
+        { _id: { $in: [...sellerIdsToFetch] } },
+        'companyName brandOfProfileUsed contactPerson phoneNumber'
+      ).lean();
+      const sellerMap = {};
+      sellerDocs.forEach(s => { sellerMap[s._id.toString()] = s; });
+
+      normalizedLeads = normalizedLeads.map(lead => ({
+        ...lead,
+        seller: (lead.seller || []).map(s => {
+          const sid = s.sellerId?.toString?.() || String(s.sellerId);
+          if (sid && sellerMap[sid]) {
+            return { ...s, sellerId: sellerMap[sid] };
+          }
+          return s;
+        })
+      }));
+    }
+
     res.status(200).json({
       success: true,
       total,
