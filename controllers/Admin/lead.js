@@ -532,6 +532,12 @@ exports.getAllLeads = async (req, res) => {
     console.log('✅ Total leads found:', total);
     console.log('✅ Leads returned in this page:', leads.length);
     
+    // DEBUG: Log seller array for first lead
+    if (leads.length > 0) {
+      console.log('\n🔍 DEBUG seller array for first lead:');
+      console.log(JSON.stringify(leads[0].seller, null, 2));
+    }
+    
     if (leads.length > 0) {
       console.log('\n📋 Sample Lead Details:');
       console.log('🆔 Lead ID:', leads[0]._id);
