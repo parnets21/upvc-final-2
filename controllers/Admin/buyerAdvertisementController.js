@@ -10,24 +10,21 @@ const {
   safeDeleteMultipleFiles 
 } = require('../../utils/fileHelper');
 exports.getAllAdvertisements = async (req, res) => {
+  console.log('\n[AdminBuyerAds:getAll] =============================');
+  console.log('[AdminBuyerAds:getAll] Request from:', req.headers['origin'] || req.headers['referer'] || 'unknown');
   try {
-    console.log('[GetAllAds] Fetching all buyer advertisements');
     const ads = await Advertisement.find().sort({ createdAt: -1 });
-    console.log('[GetAllAds] Found', ads.length, 'advertisements');
-    ads.forEach((ad, index) => {
-      console.log(`[GetAllAds] Ad ${index + 1}:`, {
-        id: ad._id,
-        title: ad.title,
-        type: ad.type,
-        mediaUrl: ad.mediaUrl,
-        sponsorLogo: ad.sponsorLogo,
-        sponsorText: ad.sponsorText,
-        defaultMuted: ad.defaultMuted
+    console.log('[AdminBuyerAds:getAll] DB returned', ads.length, 'documents');
+    ads.forEach((ad, i) => {
+      console.log(`[AdminBuyerAds:getAll] Ad[${i}]:`, {
+        id: ad._id, title: ad.title, type: ad.type, mediaUrl: ad.mediaUrl,
       });
     });
+    console.log('[AdminBuyerAds:getAll] Sending response key: "ads", count:', ads.length);
+    console.log('[AdminBuyerAds:getAll] =============================\n');
     res.status(200).json({ success: true, ads });
   } catch (error) {
-    console.error('[GetAllAds] Error:', error);
+    console.error('[AdminBuyerAds:getAll] ERROR:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -55,7 +52,10 @@ exports.createAdvertisement = async (req, res) => {
     const { title, description, type, category, sponsorText, defaultMuted } = req.body;
     const files = req.files || [];
     
-    console.log('[CreateAd] Starting advertisement creation:', { title, type, category });
+    console.log('\n[AdminBuyerAds:create] =============================');
+    console.log('[AdminBuyerAds:create] Body:', { title, description, type, category, sponsorText, defaultMuted });
+    console.log('[AdminBuyerAds:create] Files received:', files.length);
+    files.forEach((f, i) => console.log(`[AdminBuyerAds:create] File[${i}]:`, { fieldname: f.fieldname, originalname: f.originalname, size: f.size, mimetype: f.mimetype, filename: f.filename }));
     
     // Organize files by field name
     const filesByField = Array.isArray(files)
@@ -157,16 +157,18 @@ exports.createAdvertisement = async (req, res) => {
 
     // Save to database
     await newAd.save();
-    console.log('[CreateAd] Advertisement saved to database:', newAd._id);
+    console.log('[AdminBuyerAds:create] Saved to DB, id:', newAd._id);
+    console.log('[AdminBuyerAds:create] =============================\n');
     
     res.status(201).json({ success: true, advertisement: newAd });
     
   } catch (error) {
-    console.error('[CreateAd] Error creating advertisement:', error.message);
+    console.error('[AdminBuyerAds:create] ERROR:', error.message);
+    console.error('[AdminBuyerAds:create] Stack:', error.stack);
     
     // Rollback: Delete all uploaded files if database save failed
     if (uploadedFiles.length > 0) {
-      console.log('[CreateAd] Rolling back uploaded files:', uploadedFiles);
+      console.log('[AdminBuyerAds:create] Rolling back uploaded files:', uploadedFiles);
       safeDeleteMultipleFiles(uploadedFiles);
     }
     

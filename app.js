@@ -97,6 +97,13 @@ app.use('/api/color' , require('./routes/Buyer/colorRoutes'));
 app.use('/api/options',require('./routes/Admin/optionRoutes'));
 app.use('/api/sub-options',require('./routes/Admin/subOptionsRoutes'));
 app.use('/api/contact', require('./routes/Buyer/contactRoutes')); 
+app.use('/api/buyer/advertisements', (req, res, next) => {
+  console.log('\n[ROUTE HIT] /api/buyer/advertisements');
+  console.log('[ROUTE HIT] Method:', req.method);
+  console.log('[ROUTE HIT] Full URL:', req.originalUrl);
+  console.log('[ROUTE HIT] Origin:', req.headers['origin'] || req.headers['referer'] || 'none');
+  next();
+});
 app.use('/api/buyer/advertisements', require('./routes/Buyer/advertisementRoutes')); 
 app.use('/api/advertisements', require('./routes/Admin/advertisement')); 
 app.use('/api/buyer/advertisements', require('./routes/Admin/buyerAdvertisement')); 
