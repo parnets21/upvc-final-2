@@ -269,63 +269,6 @@ exports.updateSellerProfile = async (req, res) => {
   }
 };
 
-// Add or Update Business Profile Video
-// exports.handleBusinessVideo = async (req, res) => {
-//   try {
-//     const { sellerId } = req.params;
-    
-//     if (!req.file) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'No video file uploaded'
-//       });
-//     }
-
-//     // Validate seller exists
-//     const seller = await Seller.findById(sellerId);
-//     if (!seller) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Seller not found'
-//       });
-//     }
-
-//     // Delete old video if exists
-//     if (seller.businessProfileVideo) {
-//       const oldVideoPath = path.join(__dirname, '../../public', seller.businessProfileVideo);
-//       if (fs.existsSync(oldVideoPath)) {
-//         fs.unlinkSync(oldVideoPath);
-//       }
-//     }
-
-//     // Save new video
-//     const videoPath = `/uploads/sellers/videos/${sellerId}-${Date.now()}${path.extname(req.file.originalname)}`;
-//     const uploadDir = path.join(__dirname, '../../public/uploads/sellers/videos');
-    
-//     if (!fs.existsSync(uploadDir)) {
-//       fs.mkdirSync(uploadDir, { recursive: true });
-//     }
-
-//     fs.writeFileSync(path.join(__dirname, '../../public', videoPath), req.file.buffer);
-
-//     // Update seller record
-//     seller.businessProfileVideo = videoPath;
-//     await seller.save();
-
-//     res.status(200).json({
-//       success: true,
-//       message: 'Business profile video updated successfully',
-//       videoUrl: videoPath
-//     });
-//   } catch (error) {
-//     console.error('Error handling business video:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Internal server error',
-//       error: error.message
-//     });
-//   }
-// }; 
 
 exports.handleBusinessVideo = async (req, res) => {
   try {
@@ -378,7 +321,7 @@ exports.handleBusinessVideo = async (req, res) => {
 };
 
 
-// Delete Business Profile Video
+
 exports.deleteBusinessVideo = async (req, res) => {
   try {
     const { sellerId } = req.params;
@@ -422,7 +365,7 @@ exports.deleteBusinessVideo = async (req, res) => {
   }
 };
 
-// Approve seller
+
 exports.approveSeller = async (req, res) => {
   try {
     const { sellerId } = req.params;
@@ -460,7 +403,7 @@ exports.approveSeller = async (req, res) => {
   }
 };
 
-// Reject seller
+
 exports.rejectSeller = async (req, res) => {
   try {
     const { sellerId } = req.params;
@@ -515,7 +458,7 @@ exports.rejectSeller = async (req, res) => {
   }
 };
 
-// Block/Unblock seller
+
 exports.toggleSellerStatus = async (req, res) => {
   try {
     const { sellerId } = req.params;
@@ -550,7 +493,7 @@ exports.toggleSellerStatus = async (req, res) => {
   }
 };
 
-// Get all sellers with advanced filters
+
 exports.getAllSellers = async (req, res) => {
   try {
     const { 
@@ -670,7 +613,7 @@ exports.getAllSellers = async (req, res) => {
   }
 };
 
-// Get seller by ID (for admin)
+
 exports.getSellerById = async (req, res) => {
   try {
     const { sellerId } = req.params;
@@ -697,7 +640,7 @@ exports.getSellerById = async (req, res) => {
   }
 };
 
-// Update seller by admin
+
 exports.updateSellerByAdmin = async (req, res) => {
   try {
     const { sellerId } = req.params;
@@ -731,7 +674,7 @@ exports.updateSellerByAdmin = async (req, res) => {
   }
 };
 
-// Delete seller
+
 exports.deleteSeller = async (req, res) => {
   try {
     const { sellerId } = req.params;
@@ -759,7 +702,7 @@ exports.deleteSeller = async (req, res) => {
   }
 };
 
-// Export sellers to Excel
+
 exports.exportSellersToExcel = async (req, res) => {
   try {
     const { 
@@ -900,7 +843,7 @@ exports.exportSellersToExcel = async (req, res) => {
   }
 };
 
-// Get city statistics
+
 exports.getCityStatistics = async (req, res) => {
   try {
     const cityStats = await Seller.aggregate([
@@ -974,7 +917,7 @@ exports.getCityStatistics = async (req, res) => {
   }
 };
 
-// Get seller documents details
+
 exports.getSellerDocuments = async (req, res) => {
   try {
     const { sellerId } = req.params;
@@ -1033,7 +976,7 @@ exports.getSellerDocuments = async (req, res) => {
   }
 };
 
-// Approve a specific document
+
 exports.approveDocument = async (req, res) => {
   try {
     const { sellerId, documentType } = req.params;
@@ -1114,7 +1057,7 @@ exports.approveDocument = async (req, res) => {
   }
 };
 
-// Reject a specific document
+
 exports.rejectDocument = async (req, res) => {
   try {
     const { sellerId, documentType } = req.params;
