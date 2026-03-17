@@ -26,6 +26,15 @@ exports.authenticateSeller = async (req, res, next) => {
       });
     }
 
+    // Block access if seller is not approved yet
+    if (seller.status !== 'approved') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is under verification. You will be notified once approved.',
+        status: seller.status
+      });
+    }
+
     // Attach user to request object
     req.seller = seller;
     next();
