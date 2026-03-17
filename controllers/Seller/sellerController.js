@@ -45,13 +45,13 @@ exports.registerSeller = async (req, res) => {
 
     // Process uploaded files
     const gstCertificatePath = req.files['gstCertificate'] 
-      ? path.join('sellers', req.files['gstCertificate'][0].filename) 
+      ? `/uploads/sellers/${req.files['gstCertificate'][0].filename}`
       : null;
     const visitingCardPath = req.files['visitingCard'] 
-      ? path.join('sellers', req.files['visitingCard'][0].filename) 
+      ? `/uploads/sellers/${req.files['visitingCard'][0].filename}`
       : null;
     const businessProfileVideoPath = req.files['businessProfileVideo'] 
-      ? path.join('sellers', req.files['businessProfileVideo'][0].filename) 
+      ? `/uploads/sellers/${req.files['businessProfileVideo'][0].filename}`
       : null;
 
     // Create or update seller
