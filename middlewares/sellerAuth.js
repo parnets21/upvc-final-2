@@ -26,11 +26,22 @@ exports.authenticateSeller = async (req, res, next) => {
       });
     }
 
-    // Block access if seller is not approved yet
-    if (seller.status !== 'approved') {
+    // Block access only if seller account is still pending approval
+    if (seller.status === 'pending') {
       return res.status(403).json({
         success: false,
         message: 'Your account is under verification. You will be notified once approved.',
+        status: seller.status
+      });
+    }
+
+    // Block access if seller account was rejected or blocked
+    if (seller.status === 'rejected' || seller.status === 'blocked') {
+      return res.status(403).json({
+        success: false,
+        message: seller.status === 'blocked'
+          ? 'Your account has been blocked. Please contact support.'
+          : 'Your application was not approved. Please contact support.',
         status: seller.status
       });
     }
