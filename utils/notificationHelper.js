@@ -50,11 +50,13 @@ exports.saveSellerNotification = async (sellerId, leadData) => {
 // Send lead purchased notification to buyer via FCM
 exports.sendBuyerLeadPurchasedNotification = async (fcmToken, data) => {
   try {
+    const title = '🎉 Your lead is getting attention!';
+    const body = data.remainingSlots === 0
+      ? `A fabricator in ${data.location} just unlocked your project. Your lead is now fully booked!`
+      : `A fabricator in ${data.location} just unlocked your project. ${data.remainingSlots} slot(s) still open!`;
+
     const message = {
-      notification: {
-        title: '🛒 Someone Bought Your Lead!',
-        body: `${data.sellerName} is interested in your project in ${data.location}. Check your active leads!`,
-      },
+      notification: { title, body },
       data: {
         type: 'lead_purchased',
         leadId: data.leadId,
@@ -75,9 +77,14 @@ exports.sendBuyerLeadPurchasedNotification = async (fcmToken, data) => {
 // Save lead purchased notification to database for buyer
 exports.saveBuyerNotification = async (buyerId, data) => {
   try {
+    const title = '🎉 Your lead is getting attention!';
+    const message = data.remainingSlots === 0
+      ? `A fabricator in ${data.location} just unlocked your project. Your lead is now fully booked!`
+      : `A fabricator in ${data.location} just unlocked your project. ${data.remainingSlots} slot(s) still open!`;
+
     await Notification.create({
-      title: '🛒 Someone Bought Your Lead!',
-      message: `A seller is interested in your project in ${data.location}. ${data.remainingSlots} slot(s) still available.`,
+      title,
+      message,
       userType: 'buyer',
       type: 'lead_purchased',
       userId: buyerId,
