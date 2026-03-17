@@ -46,3 +46,47 @@ exports.saveSellerNotification = async (sellerId, leadData) => {
     throw error;
   }
 };
+
+// Send lead purchased notification to buyer via FCM
+exports.sendBuyerLeadPurchasedNotification = async (fcmToken, data) => {
+  try {
+    const message = {
+      notification: {
+        title: '🛒 Someone Bought Your Lead!',
+        body: `${data.sellerName} is interested in your project in ${data.location}. Check your active leads!`,
+      },
+      data: {
+        type: 'lead_purchased',
+        leadId: data.leadId,
+        timestamp: new Date().toISOString()
+      },
+      token: fcmToken
+    };
+
+    await admin.messaging().send(message);
+    console.log('✅ Buyer FCM notification sent successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending buyer FCM notification:', error);
+    throw error;
+  }
+};
+
+// Save lead purchased notification to database for buyer
+exports.saveBuyerNotification = async (buyerId, data) => {
+  try {
+    await Notification.create({
+      title: '🛒 Someone Bought Your Lead!',
+      message: `A seller is interested in your project in ${data.location}. ${data.remainingSlots} slot(s) still available.`,
+      userType: 'buyer',
+      type: 'lead_purchased',
+      userId: buyerId,
+      userModel: 'User'
+    });
+    console.log('✅ Buyer notification saved to database');
+    return true;
+  } catch (error) {
+    console.error('❌ Error saving buyer notification:', error);
+    throw error;
+  }
+};

@@ -1080,7 +1080,36 @@ exports.purchaseLead = async (req, res) => {
     
     // Save seller
     await seller.save();
-    
+
+    // Notify the buyer that someone purchased their lead
+    try {
+      const { sendBuyerLeadPurchasedNotification, saveBuyerNotification } = require('../../utils/notificationHelper');
+      const buyer = await User.findById(lead.buyer);
+      if (buyer) {
+        const notifData = {
+          leadId: leadId.toString(),
+          sellerName: seller.companyName || seller.contactPerson || 'A seller',
+          location: lead.projectInfo?.area || lead.projectInfo?.address || 'your area',
+          remainingSlots: newAvailableSlots,
+        };
+
+        if (buyer.fcmToken) {
+          try {
+            await sendBuyerLeadPurchasedNotification(buyer.fcmToken, notifData);
+          } catch (e) {
+            console.error('❌ Failed to send buyer FCM notification:', e.message);
+          }
+        } else {
+          console.log('⚠️ Buyer has no FCM token, skipping push notification');
+        }
+
+        await saveBuyerNotification(buyer._id, notifData);
+      }
+    } catch (notifError) {
+      console.error('❌ Error notifying buyer of lead purchase:', notifError);
+      // Don't fail the purchase if notification fails
+    }
+
     res.status(200).json({
       success: true,
       message: 'Lead purchased successfully',
