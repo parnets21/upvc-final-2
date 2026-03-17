@@ -151,3 +151,83 @@ exports.sendNewLeadEmail = async (sellerEmail, sellerName, leadData) => {
     throw error;
   }
 };
+
+// Send document rejection email to seller
+exports.sendDocumentRejectionEmail = async (sellerEmail, sellerName, documentType, reason) => {
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'UPVC Connect <noreply@upvcconnect.com>',
+      to: sellerEmail,
+      subject: `❌ Document Rejected - ${documentType}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <h2 style="color:#e74c3c;">Document Rejected</h2>
+          <p>Dear ${sellerName},</p>
+          <p>Your <strong>${documentType}</strong> has been reviewed and rejected.</p>
+          <div style="background:#fdf2f2;border-left:4px solid #e74c3c;padding:16px;border-radius:4px;margin:16px 0;">
+            <strong>Reason:</strong> ${reason}
+          </div>
+          <p>Please re-upload the correct document to proceed.</p>
+          <p>Best regards,<br><strong>UPVC Connect Team</strong></p>
+        </div>
+      `
+    });
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending document rejection email:', error);
+    throw error;
+  }
+};
+
+// Send document approval email to seller
+exports.sendDocumentApprovalEmail = async (sellerEmail, sellerName, documentType) => {
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'UPVC Connect <noreply@upvcconnect.com>',
+      to: sellerEmail,
+      subject: `✅ Document Approved - ${documentType}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <h2 style="color:#27ae60;">Document Approved</h2>
+          <p>Dear ${sellerName},</p>
+          <p>Your <strong>${documentType}</strong> has been approved successfully.</p>
+          <p>Best regards,<br><strong>UPVC Connect Team</strong></p>
+        </div>
+      `
+    });
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending document approval email:', error);
+    throw error;
+  }
+};
+
+// Send seller application rejection email
+exports.sendSellerRejectionEmail = async (sellerEmail, sellerName, reason) => {
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'UPVC Connect <noreply@upvcconnect.com>',
+      to: sellerEmail,
+      subject: '❌ Application Not Approved - UPVC Connect',
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <h2 style="color:#e74c3c;">Application Not Approved</h2>
+          <p>Dear ${sellerName},</p>
+          <p>We regret to inform you that your seller application has not been approved.</p>
+          <div style="background:#fdf2f2;border-left:4px solid #e74c3c;padding:16px;border-radius:4px;margin:16px 0;">
+            <strong>Reason:</strong> ${reason}
+          </div>
+          <p>If you believe this is a mistake, please contact our support team.</p>
+          <p>Best regards,<br><strong>UPVC Connect Team</strong></p>
+        </div>
+      `
+    });
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending seller rejection email:', error);
+    throw error;
+  }
+};

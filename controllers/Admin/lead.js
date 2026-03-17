@@ -814,14 +814,38 @@ exports.getLeadById = async (req, res) => {
 exports.purchaseLead = async (req, res) => {
   try {
     const { leadId, slotsToBuy, useFreeQuota, freeSqftToUse, price } = req.body;
-    // console.log("price : " , price)
-    // return
     const sellerId = req.seller._id
 
     if (!leadId || !sellerId || !slotsToBuy || slotsToBuy <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Invalid request. Missing or invalid parameters.'
+      });
+    }
+
+    // Block purchase if seller's documents are not all approved
+    const seller = await Seller.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({ success: false, message: 'Seller not found' });
+    }
+
+    const docStatuses = [
+      seller.gstCertificateStatus,
+      // visitingCard and businessProfileVideo are optional — only check if uploaded
+      ...(seller.visitingCard ? [seller.visitingCardStatus] : []),
+      ...(seller.businessProfileVideo ? [seller.businessProfileVideoStatus] : []),
+    ];
+
+    const allDocsApproved = docStatuses.every(s => s === 'approved');
+    if (!allDocsApproved) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your documents are under verification. You can purchase leads once all documents are approved.',
+        documentStatuses: {
+          gstCertificate: seller.gstCertificateStatus,
+          visitingCard: seller.visitingCard ? seller.visitingCardStatus : 'not_uploaded',
+          businessProfileVideo: seller.businessProfileVideo ? seller.businessProfileVideoStatus : 'not_uploaded',
+        }
       });
     }
 
@@ -866,13 +890,6 @@ exports.purchaseLead = async (req, res) => {
       lead.status = normalizedStatus;
     }
 
-    const seller = await Seller.findById(sellerId);
-    if (!seller) {
-      return res.status(404).json({
-        success: false,
-        message: 'Seller not found'
-      });
-    }
     console.log("Seller : " , seller)
 
     // Check if total sqft is <= 50 and seller already purchased this lead

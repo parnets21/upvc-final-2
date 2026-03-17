@@ -1074,19 +1074,27 @@ exports.approveDocument = async (req, res) => {
 
     // Send notification to seller if FCM token exists
     if (seller.fcmToken) {
-      await sendDocumentApprovalNotification(seller.fcmToken, documentType);
+      try {
+        await sendDocumentApprovalNotification(seller.fcmToken, documentType);
+      } catch (e) {
+        console.error('FCM notification failed:', e.message);
+      }
     }
 
     // Send email notification
     if (seller.email) {
-      const documentTypeFormatted = documentType
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/^./, str => str.toUpperCase());
-      await sendDocumentApprovalEmail(
-        seller.email,
-        seller.companyName || seller.contactPerson || 'Seller',
-        documentTypeFormatted
-      );
+      try {
+        const documentTypeFormatted = documentType
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/^./, str => str.toUpperCase());
+        await sendDocumentApprovalEmail(
+          seller.email,
+          seller.companyName || seller.contactPerson || 'Seller',
+          documentTypeFormatted
+        );
+      } catch (e) {
+        console.error('Email notification failed:', e.message);
+      }
     }
 
     res.status(200).json({
@@ -1155,20 +1163,28 @@ exports.rejectDocument = async (req, res) => {
 
     // Send push notification to seller if FCM token exists
     if (seller.fcmToken) {
-      await sendDocumentRejectionNotification(seller.fcmToken, documentType, reason);
+      try {
+        await sendDocumentRejectionNotification(seller.fcmToken, documentType, reason);
+      } catch (e) {
+        console.error('FCM notification failed:', e.message);
+      }
     }
 
     // Send email notification
     if (seller.email) {
-      const documentTypeFormatted = documentType
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/^./, str => str.toUpperCase());
-      await sendDocumentRejectionEmail(
-        seller.email,
-        seller.companyName || seller.contactPerson || 'Seller',
-        documentTypeFormatted,
-        reason
-      );
+      try {
+        const documentTypeFormatted = documentType
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/^./, str => str.toUpperCase());
+        await sendDocumentRejectionEmail(
+          seller.email,
+          seller.companyName || seller.contactPerson || 'Seller',
+          documentTypeFormatted,
+          reason
+        );
+      } catch (e) {
+        console.error('Email notification failed:', e.message);
+      }
     }
 
     res.status(200).json({
