@@ -5,9 +5,6 @@ const { authenticate } = require('../../middlewares/authMiddleware');
 const { authenticateSeller } = require('../../middlewares/sellerAuth');
 const Seller = require('../../models/Seller/Seller');
 
-// Get seller's remaining quota
-router.get('/quota', authenticateSeller, leadController.getSellerQuota);
-
 // Admin analytics and data endpoints (MUST come before parameterized routes)
 router.get('/cities', leadController.getCities);
 router.get('/analytics', leadController.getLeadAnalytics);
@@ -18,17 +15,6 @@ router.get('/comprehensive', leadController.getAllLeadsAdmin);
 
 // City-specific routes
 router.get('/city/:city', leadController.getLeadsByCity);
-
-// Check if quota was used for a lead
-router.get('/lead-quota-check/:leadId', authenticateSeller, async (req, res) => {
-  try {
-    const seller = await Seller.findById({_id : req.seller._id});
-    const alreadyUsed = seller.quotaUsage.some(u => u.leadId.equals(req.params.leadId));
-    res.json({ success: true, alreadyUsed });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 
 // Lead management routes
 // POST /api/seller/lead - Create a new lead (Buyer side)

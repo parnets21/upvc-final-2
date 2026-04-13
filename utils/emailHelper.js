@@ -111,8 +111,8 @@ exports.sendNewLeadEmail = async (sellerEmail, sellerName, leadData) => {
                   <span class="detail-value">${leadData.totalSqft} sqft</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">Available Slots:</span>
-                  <span class="detail-value">${leadData.availableSlots} / ${leadData.maxSlots}</span>
+                  <span class="detail-label">Seller Slots:</span>
+                  <span class="detail-value">${3 - (leadData.participatingSellersCount || 0)} / 3 available</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Posted By:</span>

@@ -126,19 +126,28 @@ exports.getSellerProfile = async (req, res) => {
       });
     }
 
-    // Check if seller is approved
-    // if (seller.status !== 'approved') {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'Seller account not approved yet',
-    //     status: seller.status,
-    //     rejectionReason: seller.rejectionReason
-    //   });
-    // }
+    // Add winner status to each lead
+    const sellerId = seller._id.toString();
+    const leadsWithStatus = seller.leads.map(lead => {
+      const sellerEntry = lead.seller.find(s => s.sellerId.toString() === sellerId);
+      
+      return {
+        ...lead.toObject(),
+        isWinner: lead.winnerSellerId && lead.winnerSellerId.toString() === sellerId,
+        sellerStatus: sellerEntry?.sellerStatus || 'active',
+        transactionConfirmed: lead.transactionConfirmed || false,
+        needsConfirmation: lead.winnerSellerId && 
+                          lead.winnerSellerId.toString() === sellerId && 
+                          !lead.transactionConfirmed
+      };
+    });
 
     res.status(200).json({ 
       success: true, 
-      seller 
+      seller: {
+        ...seller.toObject(),
+        leads: leadsWithStatus
+      }
     });
   } catch (error) {
     console.error('Error in getSellerProfile:', error);

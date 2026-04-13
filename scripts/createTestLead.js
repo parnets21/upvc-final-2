@@ -36,6 +36,27 @@ async function createTestLead() {
     }
     console.log('Using product:', product._id, product.title);
 
+    // Calculate pricing based on category
+    const PRICE_PER_SQFT = {
+      premium: 550,
+      mid: 450,
+      economy: 350
+    };
+
+    const ESCROW_PERCENTAGE = {
+      premium: 7.5,
+      mid: 7.5,
+      economy: 5.0
+    };
+
+    const categoryName = category.name.toLowerCase();
+    const pricePerSqft = PRICE_PER_SQFT[categoryName] || PRICE_PER_SQFT.mid;
+    const totalSqft = 24;
+    const leadValue = Math.round(totalSqft * pricePerSqft);
+    const escrowPercentage = ESCROW_PERCENTAGE[categoryName] || ESCROW_PERCENTAGE.mid;
+    const calculatedEscrow = Math.round((leadValue * escrowPercentage) / 100);
+    const escrowDepositAmount = Math.min(calculatedEscrow, 6500); // Cap at ₹6,500
+
     // Create test lead
     const lead = new Lead({
       buyer: buyer._id,
@@ -65,19 +86,26 @@ async function createTestLead() {
         stage: 'planning',
         timeline: '0-30 days'
       },
-      totalSqft: 24,
+      totalSqft: totalSqft,
       totalQuantity: 2,
+      pricePerSqft: pricePerSqft,
+      leadValue: leadValue,
+      escrowDepositAmount: escrowDepositAmount,
       status: 'new',
-      availableSlots: 6,
-      maxSlots: 6,
-      dynamicSlotPrice: 315
+      maxSellers: 3,
+      participatingSellersCount: 0
     });
 
     await lead.save();
     console.log('\n✅ Test lead created successfully!');
     console.log('Lead ID:', lead._id);
+    console.log('Category:', category.name);
     console.log('Status:', lead.status);
     console.log('Total Sqft:', lead.totalSqft);
+    console.log('Price Per Sqft:', pricePerSqft);
+    console.log('Lead Value:', leadValue);
+    console.log('Escrow Deposit:', escrowDepositAmount);
+    console.log('Max Sellers:', 3);
 
     process.exit(0);
   } catch (error) {

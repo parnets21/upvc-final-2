@@ -170,9 +170,38 @@ exports.convertToLead = async (req, res) => {
     // Calculate totals
     const totalSqft = leadQuotes.reduce((sum, quote) => sum + quote.sqft, 0);
     const totalQuantity = leadQuotes.reduce((sum, quote) => sum + quote.quantity, 0);
-    const pricePerSqft = 6250 / (totalSqft * 6);
+    
+    // Get category for pricing
+    const Category = require('../../models/Admin/Category');
+    const category = await Category.findById(categoryId);
+    if (!category) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Category not found' 
+      });
+    }
 
-    // Create lead (you'll need to import your Lead model)
+    // Calculate lead value and escrow
+    const PRICE_PER_SQFT = {
+      premium: 550,
+      mid: 450,
+      economy: 350
+    };
+
+    const ESCROW_PERCENTAGE = {
+      premium: 7.5,
+      mid: 7.5,
+      economy: 5.0
+    };
+
+    const categoryName = category.name.toLowerCase();
+    const pricePerSqft = PRICE_PER_SQFT[categoryName] || PRICE_PER_SQFT.mid;
+    const leadValue = Math.round(totalSqft * pricePerSqft);
+    const escrowPercentage = ESCROW_PERCENTAGE[categoryName] || ESCROW_PERCENTAGE.mid;
+    const calculatedEscrow = Math.round((leadValue * escrowPercentage) / 100);
+    const escrowDepositAmount = Math.min(calculatedEscrow, 6500); // Cap at ₹6,500
+
+    // Create lead with escrow-based system
     const lead = new Lead({
       buyer: buyerId,
       quotes: leadQuotes,
@@ -181,12 +210,17 @@ exports.convertToLead = async (req, res) => {
       category: categoryId,
       totalSqft,
       totalQuantity,
-      pricePerSqft
+      pricePerSqft: pricePerSqft,
+      leadValue: leadValue,
+      escrowDepositAmount: escrowDepositAmount,
+      maxSellers: 3,
+      participatingSellersCount: 0,
+      status: 'new'
     });
 
     console.log('🔍 Lead before save:', {
-      availableSlots: lead.availableSlots,
-      maxSlots: lead.maxSlots,
+      maxSellers: lead.maxSellers,
+      participatingSellersCount: lead.participatingSellersCount,
       seller: lead.seller,
       sellerLength: lead.seller?.length || 0
     });
@@ -195,8 +229,8 @@ exports.convertToLead = async (req, res) => {
 
     console.log('✅ Lead after save:', {
       _id: lead._id,
-      availableSlots: lead.availableSlots,
-      maxSlots: lead.maxSlots,
+      maxSellers: lead.maxSellers,
+      participatingSellersCount: lead.participatingSellersCount,
       seller: lead.seller,
       sellerLength: lead.seller?.length || 0
     });
@@ -218,74 +252,7 @@ exports.convertToLead = async (req, res) => {
     }); 
   } 
 }; 
-  
-// Add item to cart (quote)
-// exports.addToCart = async (req, res) => {
-//   try {
-//     const { productType, product, color, installationLocation, height, width, quantity, remark } = req.body;
-
-//     // Validate product exists
-//     const productExists = await WindowSubOption.findById(product);
-//     if (!productExists) {
-//       return res.status(404).json({ 
-//         success: false, 
-//         message: 'Product not found' 
-//       });
-//     }
-
-//     // Check if same product already exists in cart
-//     const existingItem = await Quote.findOne({ 
-//       buyer: req.user._id,
-//       product,
-//       color,
-//       installationLocation,
-//       height,
-//       width
-//     });
-
-//     if (existingItem) {
-//       // Update quantity if item exists
-//       existingItem.quantity += quantity;
-//       await existingItem.save();
-      
-//       return res.status(200).json({
-//         success: true,
-//         message: 'Cart item quantity updated',
-//         quote: existingItem
-//       });
-//     }
-
-//     // Create new cart item
-//     const quote = new Quote({
-//       buyer: req.user._id,
-//       productType,
-//       product,
-//       color,
-//       installationLocation,
-//       height,
-//       width,
-//       quantity,
-//       remark
-//     });
-
-//     await quote.save();
-
-//     res.status(201).json({
-//       success: true,
-//       message: 'Item added to cart successfully',
-//       quote
-//     });
-//   } catch (error) {
-//     console.error('Error adding to cart:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Internal server error',
-//       error: error.message
-//     });
-//   }
-// };
-
-   exports.addToCart = async (req, res) => {
+exports.addToCart = async (req, res) => {
   try {
     const { productType, product, color, installationLocation, height, width, quantity, remark } = req.body;
 
@@ -501,7 +468,27 @@ exports.convertCartToLead = async (req, res) => {
     const totalSqft = leadQuotes.reduce((sum, quote) => sum + quote.sqft, 0);
     const totalQuantity = leadQuotes.reduce((sum, quote) => sum + quote.quantity, 0);
 
-    // Create lead
+    // Calculate lead value and escrow using category-based pricing
+    const PRICE_PER_SQFT = {
+      premium: 550,
+      mid: 450,
+      economy: 350
+    };
+
+    const ESCROW_PERCENTAGE = {
+      premium: 7.5,
+      mid: 7.5,
+      economy: 5.0
+    };
+
+    const categoryName = category.name.toLowerCase();
+    const pricePerSqft = PRICE_PER_SQFT[categoryName] || PRICE_PER_SQFT.mid;
+    const leadValue = Math.round(totalSqft * pricePerSqft);
+    const escrowPercentage = ESCROW_PERCENTAGE[categoryName] || ESCROW_PERCENTAGE.mid;
+    const calculatedEscrow = Math.round((leadValue * escrowPercentage) / 100);
+    const escrowDepositAmount = Math.min(calculatedEscrow, 6500); // Cap at ₹6,500
+
+    // Create lead with escrow-based system (3 sellers max)
     const lead = new Lead({
       buyer: req.user._id,
       quotes: leadQuotes,
@@ -510,7 +497,12 @@ exports.convertCartToLead = async (req, res) => {
       category: categoryId,
       totalSqft,
       totalQuantity,
-      basePricePerSqft: 10.5
+      pricePerSqft: pricePerSqft,
+      leadValue: leadValue,
+      escrowDepositAmount: escrowDepositAmount,
+      maxSellers: 3,
+      participatingSellersCount: 0,
+      status: 'new'
     });
 
     await lead.save();

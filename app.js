@@ -120,6 +120,7 @@ app.use('/api/admin', require('./routes/Admin/buyerManagement'));
 
 app.use('/api/sellers', require('./routes/Seller/sellerRoutes')); 
 app.use('/api/quotes', require('./routes/Buyer/quoteRoutes'));
+app.use('/api/buyers', require('./routes/Buyer/transactionRoutes')); // Transaction routes
 
 // Test routes for debugging (remove in production)
 app.use('/test', require('./routes/test'));

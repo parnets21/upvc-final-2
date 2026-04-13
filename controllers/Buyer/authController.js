@@ -306,7 +306,11 @@ exports.getBuyerLeads = async (req, res) => {
           phone: lead.contactInfo.contactNumber,
           whatsapp: lead.contactInfo.whatsappNumber,
           email: lead.contactInfo.email
-        }
+        },
+        // Transaction status
+        winnerSelected: !!lead.winnerSellerId,
+        transactionConfirmed: lead.transactionConfirmed || false,
+        transactionStatus: lead.transactionStatus || 'pending'
       };
     });
 

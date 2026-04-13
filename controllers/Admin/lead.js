@@ -6,76 +6,12 @@ const Category = require('../../models/Admin/Category');
 const Quote = require('../../models/Buyer/Quote');
 const mongoose = require('mongoose');
 
-// Log that this file is loaded
-console.log('\n✅✅✅ Lead Controller File Loaded ✅✅✅');
-console.log('📁 File: controllers/Admin/lead.js');
-console.log('⏰ Loaded at:', new Date().toISOString());
-console.log('========================================\n');
 
-// Create a new lead
-// exports.createLead = async (req, res) => {
-//   try {
-//     const { quotes, contactInfo, projectInfo, categoryId, totalSqft } = req.body;
-//     // console.log("totalSqft : " , totalSqft)
-//     // Validate buyer exists
-//     const buyer = await User.findById({_id : req.user._id});
-//     if (!buyer) {
-//       return res.status(404).json({ success: false, message: 'Buyer not found' });
-//     }
 
-//     // Validate category exists
-//     const category = await Category.findById(categoryId);
-//     if (!category) {
-//       return res.status(404).json({ success: false, message: 'Category not found' });
-//     }
 
-//     // Validate all products in quotes exist
-//     for (const quote of quotes) {
-//       const product = await WindowSubOption.findById(quote.product);
-//       if (!product) {
-//         return res.status(404).json({ 
-//           success: false, 
-//           message: `Product not found for ID: ${quote.product}` 
-//         });
-//       }
-//     }
-     
-//     const lead = new Lead({
-//       buyer: req.user._id,
-//       quotes,
-//       contactInfo,
-//       projectInfo,
-//       category: categoryId, 
-//     });
-
-//     await lead.save();
-    
-
-//     res.status(201).json({
-//       success: true,
-//       message: 'Lead created successfully',
-//       lead
-//     });
-//   } catch (error) {
-//     console.error('Error creating lead:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Internal server error',
-//       error: error.message
-//     });
-//   }
-// };
 
 exports.createLead = async (req, res) => {
-  // IMMEDIATE LOG - This will definitely show up
-  console.log('\n');
-  console.log('========================================');
-  console.log('🚀🚀🚀 [BUYER BACKEND] createLead FUNCTION CALLED 🚀🚀🚀');
-  console.log('========================================');
-  console.log('📅 Timestamp:', new Date().toISOString());
-  console.log('👤 User from token:', req.user?._id);
-  console.log('📦 Request body:', JSON.stringify(req.body, null, 2));
-  console.log('📋 Request headers:', JSON.stringify(req.headers, null, 2));
+
   
   try {
 
@@ -133,28 +69,22 @@ exports.createLead = async (req, res) => {
         message: 'Category ID is required' 
       });
     }
-
-    const category = await Category.findById(categoryId);
+const category = await Category.findById(categoryId);
     if (!category) {
       console.log('Category not found for ID:', categoryId);
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
-
-    console.log('Category found:', category.name);
-
-    if (!quotes || !Array.isArray(quotes) || quotes.length === 0) {
+console.log('Category found:', category.name);
+if (!quotes || !Array.isArray(quotes) || quotes.length === 0) {
       return res.status(400).json({ 
         success: false, 
         message: 'At least one quote is required' 
       });
     }
-
-    let totalSqft = 0;
+let totalSqft = 0;
     let totalQuantity = 0;
-
-    const validatedQuotes = [];
-
-    for (const quote of quotes) {
+const validatedQuotes = [];
+for (const quote of quotes) {
       console.log("Processing quote:", quote);
       
       if (!quote.product) {
@@ -203,22 +133,33 @@ exports.createLead = async (req, res) => {
         isGenerated: quote.isGenerated !== undefined ? quote.isGenerated : true
       });
     }
-
-    console.log('\n📊 Quote Processing Summary:');
-    console.log('✅ Total Sqft calculated:', totalSqft);
-    console.log('✅ Total Quantity:', totalQuantity);
-    console.log('✅ Validated Quotes Count:', validatedQuotes.length);
-    validatedQuotes.forEach((q, idx) => {
+validatedQuotes.forEach((q, idx) => {
       console.log(`  Quote ${idx + 1}: Product=${q.product}, Sqft=${q.sqft}, Qty=${q.quantity}`);
     });
 
-    // Update quotes in database if they have _id (existing quotes)
+    // ⭐ MINIMUM ORDER VALIDATION: 100 SQFT ⭐
+    console.log('\n🔍 Validating minimum order quantity...');
+    console.log(`  Total Sqft: ${totalSqft}`);
+    
+    if (totalSqft < 100) {
+      console.log('🚫 ORDER REJECTED - Below minimum 100 sqft');
+      return res.status(400).json({
+        success: false,
+        message: `Minimum order quantity is 100 sqft. Your current order is ${totalSqft} sqft. Please add more items to meet the minimum requirement.`,
+        currentSqft: totalSqft,
+        minimumRequired: 100,
+        shortfall: 100 - totalSqft
+      });
+    }
+    
+    console.log('✅ Minimum order quantity met');
+
     if (quotes.some(q => q._id)) {
       const bulkOps = quotes
-        .filter(q => q._id) // Only update quotes that have _id
+        .filter(q => q._id) 
         .map(q => ({
           updateOne: {
-            filter: { _id: q._id, buyer: req.user._id }, // Also verify buyer owns the quote
+            filter: { _id: q._id, buyer: req.user._id },
             update: { $set: { isGenerated: q.isGenerated !== undefined ? q.isGenerated : true } }
           }
         }));
@@ -229,22 +170,28 @@ exports.createLead = async (req, res) => {
           await Quote.bulkWrite(bulkOps);
         } catch (error) {
           console.error('Error updating quotes:', error);
-          // Don't fail the lead creation if quote update fails
         }
       }
     }
-
-    // Calculate dynamic slots and pricing
-    const basePricePerSqft = 10.50;
-    const baseValue = totalSqft * basePricePerSqft;
-    const targetProfit = 6250;
-    
-    // Always use 6 slots — only adjust price per slot
-    const maxSlots = 6;
-    const dynamicSlotPrice = Math.min(baseValue, targetProfit / 6);
-    const overProfit = baseValue * 6 > targetProfit;
-
-    const lead = new Lead({
+    // ⭐ NEW: Category-based pricing and escrow calculation
+    const PRICE_PER_SQFT = {
+      premium: 550,
+      mid: 450,
+      economy: 350
+    };
+const ESCROW_PERCENTAGE = {
+      premium: 7.5,
+      mid: 7.5,
+      economy: 5.0
+    };
+    const categoryName = category.name.toLowerCase();
+    const pricePerSqft = PRICE_PER_SQFT[categoryName] || PRICE_PER_SQFT.mid;
+const leadValue = Math.round(totalSqft * pricePerSqft);
+  const escrowPercentage = ESCROW_PERCENTAGE[categoryName] || ESCROW_PERCENTAGE.mid;
+    const calculatedEscrow = Math.round((leadValue * escrowPercentage) / 100);
+    const escrowDepositAmount = Math.min(calculatedEscrow, 6500); // Cap at ₹6,500
+    const maxSlots = 3;
+const lead = new Lead({
       buyer: req.user._id,
       quotes: validatedQuotes,
       contactInfo,
@@ -252,55 +199,14 @@ exports.createLead = async (req, res) => {
       category: categoryId,
       totalSqft,
       totalQuantity,
-      pricePerSqft: 10.5,
-      basePricePerSqft: basePricePerSqft,
-      availableSlots: maxSlots,
-      maxSlots: maxSlots,
-      dynamicSlotPrice: dynamicSlotPrice,
-      overProfit: overProfit,
+      pricePerSqft: pricePerSqft,
+      leadValue: leadValue,
+      escrowDepositAmount: escrowDepositAmount,
+      maxSellers: 3,
+      participatingSellersCount: 0,
       status: 'new',
     });
-
-    console.log('\n💾 Saving lead to database...');
-    console.log('📊 Lead Status (before save):', lead.status);
-    console.log('🎰 Available Slots (before save):', lead.availableSlots);
-    console.log('📏 Total Sqft (before save):', lead.totalSqft);
-    
     await lead.save();
-    console.log('✅ Lead saved successfully');
-    console.log('📊 Lead Status (after save):', lead.status);
-    console.log('🆔 Lead ID (after save):', lead._id);
-
-    console.log('\n✅ [BUYER BACKEND] Lead Created Successfully!');
-    console.log('🆔 Lead ID:', lead._id);
-    console.log('👤 Buyer:', buyer.name || buyer.mobileNumber);
-    console.log('📧 Buyer Email:', buyer.email);
-    console.log('📏 Total Sqft:', totalSqft);
-    console.log('📦 Total Quantity:', totalQuantity);
-    console.log('🎰 Available Slots:', lead.availableSlots);
-    console.log('🎰 Max Slots:', lead.maxSlots);
-    console.log('� Dynamic Slot Price:', lead.dynamicSlotPrice);
-    console.log('� Brase Price Per Sqft:', lead.basePricePerSqft);
-    console.log('� Base Value:', baseValue);
-    console.log('� Target Profit:', targetProfit);
-    console.log('💰 Over Profit:', lead.overProfit);
-    console.log('� Status:', lead.status);
-    console.log('� Created At:', lead.createdAt);
-    console.log('� Project Address:', projectInfo?.address);
-    console.log('� Project Area:', projectInfo?.area);
-    console.log('📍 Pincode:', projectInfo?.pincode);
-    console.log('🏷️ Category ID:', categoryId);
-    console.log('📋 Contact Name:', contactInfo?.name);
-    console.log('📱 Contact Number:', contactInfo?.contactNumber);
-    console.log('📧 Contact Email:', contactInfo?.email);
-    console.log('\n🔍 Lead Visibility Check:');
-    console.log('  ✅ Status is "new":', lead.status === 'new');
-    console.log('  ✅ Has available slots:', lead.availableSlots > 0);
-    console.log('  ✅ Should be visible to sellers:', lead.status === 'new' && lead.availableSlots > 0);
-    console.log('========================================\n');
-
-    // Send notifications to matching sellers
-    console.log('\n📢 [NOTIFICATION] Starting to notify matching sellers...');
     try {
       const Seller = require('../../models/Seller/Seller');
       const Category = require('../../models/Admin/Category');
@@ -311,10 +217,7 @@ exports.createLead = async (req, res) => {
       const category = await Category.findById(categoryId);
       const categoryName = category ? category.name : 'N/A';
 
-      // Find matching sellers based on:
-      // 1. Same pincode OR city/area as the lead (case-insensitive)
-      // 2. Status is 'approved'
-      // 3. isActive is true
+  
       const leadPincode = projectInfo?.pincode || '';
       const leadArea = projectInfo?.area || '';
       const leadAddress = projectInfo?.address || '';
@@ -343,8 +246,6 @@ exports.createLead = async (req, res) => {
       if (leadAddress && leadAddress !== leadArea) {
         sellerQuery.$or.push({ city: new RegExp(leadAddress, 'i') });
       }
-      
-      // If no matching criteria, don't search (avoid notifying all sellers)
       if (sellerQuery.$or.length === 0) {
         console.log('⚠️ No location criteria available for seller matching');
         throw new Error('No location criteria for seller matching');
@@ -355,25 +256,20 @@ exports.createLead = async (req, res) => {
       console.log(`✅ Found ${matchingSellers.length} matching sellers`);
 
       if (matchingSellers.length > 0) {
-        // Prepare lead data for notifications
         const leadData = {
           leadId: lead._id.toString(),
           categoryName: categoryName,
           location: leadArea || leadAddress || 'N/A',
           totalSqft: totalSqft,
-          availableSlots: lead.availableSlots,
-          maxSlots: lead.maxSlots,
+          participatingSellersCount: 0,
+          maxSellers: 3,
           buyerName: buyer.name || 'A buyer'
         };
-
-        // Send notifications to each matching seller
         let notificationsSent = 0;
         let emailsSent = 0;
 
         for (const seller of matchingSellers) {
           console.log(`\n📤 Notifying seller: ${seller.companyName || seller.phoneNumber}`);
-          
-          // Send Firebase push notification if FCM token exists
           if (seller.fcmToken) {
             try {
               await sendNewLeadNotification(seller.fcmToken, {
@@ -416,9 +312,7 @@ exports.createLead = async (req, res) => {
           }
         }
 
-        console.log(`\n📊 Notification Summary:`);
-        console.log(`  📱 Push notifications sent: ${notificationsSent}/${matchingSellers.length}`);
-        console.log(`  📧 Emails sent: ${emailsSent}/${matchingSellers.length}`);
+  
 
        
       } else {
@@ -445,7 +339,6 @@ exports.createLead = async (req, res) => {
   }
 };
 
-// Get all leads with filters
 exports.getAllLeads = async (req, res) => {
     try {
     
@@ -519,28 +412,12 @@ exports.getAllLeads = async (req, res) => {
         .lean(), // Use lean() to get plain objects and avoid validation errors
     ]);
 
-    console.log('\n📊 Database Query Results:');
-    console.log('✅ Total leads found:', total);
-    console.log('✅ Leads returned in this page:', leads.length);
+  
     
     // DEBUG: Log seller array for first lead
-    if (leads.length > 0) {
-      console.log('\n🔍 DEBUG seller array for first lead:');
-      console.log(JSON.stringify(leads[0].seller, null, 2));
-      console.log('🔍 seller[0].sellerId type:', leads[0].seller?.[0]?.sellerId ? typeof leads[0].seller[0].sellerId : 'no sellers');
-      console.log('🔍 seller[0].sellerId value:', leads[0].seller?.[0]?.sellerId);
-    }
+  
     
     if (leads.length > 0) {
-      console.log('\n📋 Sample Lead Details:');
-      console.log('🆔 Lead ID:', leads[0]._id);
-      console.log('🎰 Available Slots:', leads[0].availableSlots);
-      console.log('📊 Status:', leads[0].status);
-      console.log('📅 Created At:', leads[0].createdAt);
-      console.log('📏 Total Sqft:', leads[0].totalSqft);
-      console.log('👤 Buyer:', leads[0].buyer?.name || leads[0].buyer?._id);
-      console.log('🏷️ Category:', leads[0].category?.name || leads[0].category?._id);
-      console.log('👥 Sellers Count:', leads[0].seller?.length || 0);
       
       // Log all leads details
       console.log('\n📋 All Leads Details:');
@@ -559,7 +436,7 @@ exports.getAllLeads = async (req, res) => {
         const createdAt = new Date(lead.createdAt);
         const hoursSinceCreation = (now - createdAt) / (1000 * 60 * 60);
         const isWithin48Hours = createdAt >= fortyEightHoursAgo;
-        const hasAvailableSlots = lead.availableSlots > 0;
+        const hasAvailableSlots = (lead.participatingSellersCount || 0) < 3;
         const statusMatch = lead.status === 'new' || lead.status === 'in-progress';
         const isVisible = isWithin48Hours && hasAvailableSlots && statusMatch;
         
@@ -571,23 +448,10 @@ exports.getAllLeads = async (req, res) => {
           if (!hasAvailableSlots) filteredReasons.noSlots++;
           if (!statusMatch) filteredReasons.wrongStatus++;
         }
-        
-        console.log(`\n  Lead ${index + 1}:`);
-        console.log(`    🆔 ID: ${lead._id}`);
-        console.log(`    📊 Status: ${lead.status} ${statusMatch ? '✅' : '❌'}`);
-        console.log(`    📅 Created At: ${lead.createdAt}`);
-        console.log(`    ⏰ Hours Since Creation: ${hoursSinceCreation.toFixed(2)}`);
-        console.log(`    ⏰ Within 48 Hours: ${isWithin48Hours ? '✅' : '❌'}`);
-        console.log(`    🎰 Available Slots: ${lead.availableSlots} ${hasAvailableSlots ? '✅' : '❌'}`);
-        console.log(`    📏 Total Sqft: ${lead.totalSqft}`);
-        console.log(`    🎰 Max Slots: ${lead.maxSlots || 'N/A'}`);
-        console.log(`    💰 Dynamic Slot Price: ${lead.dynamicSlotPrice || 'N/A'}`);
-        console.log(`    👥 Sellers Count: ${lead.seller?.length || 0}`);
-        console.log(`    👁️ Visible to Sellers: ${isVisible ? '✅ YES' : '❌ NO'}`);
         if (!isVisible) {
           const reasons = [];
           if (!isWithin48Hours) reasons.push('Too old (>48h)');
-          if (!hasAvailableSlots) reasons.push('No available slots');
+          if (!hasAvailableSlots) reasons.push('All 3 sellers joined');
           if (!statusMatch) reasons.push(`Wrong status (${lead.status})`);
           console.log(`    ❌ Filtered Out Reason: ${reasons.join(', ')}`);
         }
@@ -599,7 +463,7 @@ exports.getAllLeads = async (req, res) => {
       if (filteredOutCount > 0) {
         console.log('  📋 Filter Reasons:');
         console.log(`    - Too old (>48h): ${filteredReasons.tooOld}`);
-        console.log(`    - No available slots: ${filteredReasons.noSlots}`);
+        console.log(`    - All 3 sellers joined: ${filteredReasons.noSlots}`);
         console.log(`    - Wrong status: ${filteredReasons.wrongStatus}`);
       }
     } else {
@@ -715,123 +579,26 @@ exports.getLeadById = async (req, res) => {
     });
   }
 };
-
-// Seller purchases a lead
-// exports.purchaseLead = async (req, res) => {
-//   try {
-//     const { leadId } = req.body;
-//     const sellerId = req.seller._id
-//     // Validate lead exists
-//     const lead = await Lead.findById(leadId);
-//     if (!lead) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Lead not found'
-//       });
-//     }
-
-//     // Validate seller exists
-//     const seller = await Seller.findById(sellerId);
-//     if (!seller) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Seller not found'
-//       });
-//     }
-
-//     // Check if lead has available slots
-//     if (lead.availableSlots <= 0) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'No available slots left for this lead'
-//       });
-//     }
-
-//         // Get all sellers in the same city as the project
-//     const sellersInCity = await Seller.find({ 
-//       city: lead.projectInfo.address.city, // Assuming city is in projectInfo.address
-//       status: 'approved',
-//       isActive: true
-//     });
-
-//     // Count brands in the city
-//     const brandCounts = {};
-//     sellersInCity.forEach(seller => {
-//       if (seller.brandOfProfileUsed) {
-//         brandCounts[seller.brandOfProfileUsed] = 
-//           (brandCounts[seller.brandOfProfileUsed] || 0) + 1;
-//       }
-//     });
-
-//     // Check if any brand has reached the limit (2 sellers)
-//     const brandsAtLimit = Object.entries(brandCounts)
-//       .filter(([_, count]) => count >= 2)
-//       .map(([brand]) => brand);
-
-//     if (brandsAtLimit.length > 0) {
-//       return res.status(400).json({
-//         success: false,
-//         message: `Oops you have missed the bus by a whisker. Your brand in your city is already registered by 2 other fabricators.`,
-//         brandsAtLimit
-//       });
-//     }
-
-//     // Check if seller already purchased this lead
-//     const alreadyPurchased = lead.seller.some(s => s.sellerId.toString() === sellerId);
-//     if (alreadyPurchased) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Seller already purchased this lead'
-//       });
-//     }
-
-//     // Add seller to lead and decrease available slots
-//     lead.seller.push({ sellerId });
-//     lead.availableSlots -= 1;
-    
-//     // Update status if all slots are taken
-//     if (lead.availableSlots === 0) {
-//       lead.status = 'in-progress';
-//     }
-
-//     await lead.save();
-
-//     res.status(200).json({
-//       success: true,
-//       message: 'Lead purchased successfully',
-//       lead
-//     });
-//   } catch (error) {
-//     console.error('Error purchasing lead:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Internal server error',
-//       error: error.message
-//     });
-//   }
-// };
-
 exports.purchaseLead = async (req, res) => {
   try {
-    const { leadId, slotsToBuy, useFreeQuota, freeSqftToUse, price } = req.body;
-    const sellerId = req.seller._id
+    const { leadId, price } = req.body;
+    const sellerId = req.seller._id;
 
-    if (!leadId || !sellerId || !slotsToBuy || slotsToBuy <= 0) {
+    if (!leadId || !sellerId) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid request. Missing or invalid parameters.'
+        message: 'Invalid request. Missing parameters.'
       });
     }
 
-    // Block purchase if seller's documents are not all approved
     const seller = await Seller.findById(sellerId);
     if (!seller) {
       return res.status(404).json({ success: false, message: 'Seller not found' });
     }
 
+    // Check if seller documents are approved
     const docStatuses = [
       seller.gstCertificateStatus,
-      // visitingCard and businessProfileVideo are optional — only check if uploaded
       ...(seller.visitingCard ? [seller.visitingCardStatus] : []),
       ...(seller.businessProfileVideo ? [seller.businessProfileVideoStatus] : []),
     ];
@@ -849,10 +616,7 @@ exports.purchaseLead = async (req, res) => {
       });
     }
 
-    // Convert leadId to ObjectId if it's a string
     const leadObjectId = typeof leadId === 'string' ? new mongoose.Types.ObjectId(leadId) : leadId;
-    
-    // Fetch lead using native collection to avoid any validation
     const LeadCollection = Lead.collection;
     const leadDoc = await LeadCollection.findOne({ _id: leadObjectId });
     
@@ -862,14 +626,20 @@ exports.purchaseLead = async (req, res) => {
         message: 'Lead not found'
       });
     }
-    
-    // Convert MongoDB document to plain object
+
     const lead = {
       ...leadDoc,
       _id: leadDoc._id.toString()
     };
 
-    // Normalize status immediately after fetching to prevent validation errors
+    // Get category for pricing calculation
+    const Category = require('../../models/Admin/Category');
+    const category = await Category.findById(lead.category);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    // Normalize status
     const validStatuses = ['new', 'in-progress', 'closed', 'cancelled'];
     const statusMap = {
       'active': 'in-progress',
@@ -880,91 +650,52 @@ exports.purchaseLead = async (req, res) => {
     let normalizedStatus = lead.status;
     if (lead.status && !validStatuses.includes(lead.status)) {
       normalizedStatus = statusMap[lead.status] || 'new';
-      console.log(`Normalizing status from '${lead.status}' to '${normalizedStatus}'`);
-      // Update the status in the database directly using native collection to prevent validation errors
       await LeadCollection.updateOne(
         { _id: leadObjectId },
         { $set: { status: normalizedStatus } }
       );
-      // Update the lead object in memory
       lead.status = normalizedStatus;
     }
 
-    console.log("Seller : " , seller)
-
-    // Check if total sqft is <= 50 and seller already purchased this lead
-    if (lead.totalSqft <= 50) {
-      console.log("Yes less than 50")
-      const alreadyPurchased = lead.seller.some(s => s.sellerId.toString() === sellerId.toString());
-      console.log("alreadyPurchased : " , alreadyPurchased )
-      if (alreadyPurchased) {
-        return res.status(400).json({
-          success: false,
-          // message: 'You have already purchased this small lead (≤ 50 sqft). Duplicate purchase is not allowed.'
-          message: 'You can only purchase this lead once'
-          // have already purchased this small lead (≤ 50 sqft). Duplicate purchase is not allowed.'
-        });
-      }
+    // Check if seller already purchased this lead
+    const alreadyPurchased = lead.seller?.some(s => s.sellerId.toString() === sellerId.toString());
+    if (alreadyPurchased) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already purchased access to this lead'
+      });
     }
 
-     // Verify the seller has enough remaining quota if using free quota
-    // if (useFreeQuota) {
-    //   // const seller = await Seller.findById(req.sellerId);
-    //   if (seller.freeQuota.currentMonthQuota < freeSqftToUse) {
-    //     return res.status(400).json({ 
-    //       success: false,
-    //       message: 'Not enough free quota remaining'
-    //     });
-    //   }
-      
-    //   // Deduct the freeSqftToUse from the seller's quota
-    //   seller.freeQuota.currentMonthQuota -= freeSqftToUse;
-    //   await seller.save();
-    // }
-
-    // Check quota reset
-    const now = new Date();
-    if (now >= seller.freeQuota.nextResetDate) {
-      seller.freeQuota.currentMonthQuota = 500;
-      seller.freeQuota.usedQuota = 0;
-      seller.freeQuota.nextResetDate = new Date(now);
-      seller.freeQuota.nextResetDate.setMonth(now.getMonth() + 1);
-      await seller.save();
+    // Check if 3 sellers limit reached
+    const currentSellerCount = lead.seller?.length || 0;
+    if (currentSellerCount >= 3) {
+      return res.status(400).json({
+        success: false,
+        message: 'This lead already has 3 participating sellers. No more slots available.'
+      });
     }
 
-    // Calculate pricing
-    const pricePerSqft = lead.basePricePerSqft; // 10.5
-    const leadSqft = lead.totalSqft;
-    const totalSqft = leadSqft * slotsToBuy;
-    let freeSqftUsed = 0;
-    let paidSqft = totalSqft;
-    let actualPrice = paidSqft * pricePerSqft;
+    // Calculate escrow deposit
+    const PRICE_PER_SQFT = {
+      premium: 550,
+      mid: 450,
+      economy: 350
+    };
 
-    if (useFreeQuota && seller.freeQuota.currentMonthQuota > 0) {
-      // Check if already used quota for this lead
-      const alreadyUsed = seller.quotaUsage.some(u => u.leadId.equals(leadId));
-      
-      if (!alreadyUsed) {
-        // Calculate maximum free sqft (max 100 per transaction)
-        // freeSqftUsed = Math.min(100, seller.freeQuota.currentMonthQuota, leadSqft);
-        
-        paidSqft = totalSqft - freeSqftToUse;
-        actualPrice = paidSqft * pricePerSqft;
-        console.log("Deatils : " ,freeSqftToUse , paidSqft , actualPrice)
-        // return
-        // Update seller's quota
-        seller.freeQuota.currentMonthQuota -= freeSqftToUse;
-        seller.freeQuota.usedQuota += freeSqftToUse;
-        
-        // Record quota usage
-        seller.quotaUsage.push({
-          leadId,
-          sqftUsed: freeSqftToUse,
-          date: now
-        });
-      }
-    }
+    const ESCROW_PERCENTAGE = {
+      premium: 7.5,
+      mid: 7.5,
+      economy: 5.0
+    };
 
+    const categoryName = category.name.toLowerCase();
+    const pricePerSqft = PRICE_PER_SQFT[categoryName] || PRICE_PER_SQFT.mid;
+    const leadValue = Math.round(lead.totalSqft * pricePerSqft);
+    const escrowPercentage = ESCROW_PERCENTAGE[categoryName] || ESCROW_PERCENTAGE.mid;
+    const calculatedEscrow = Math.round((leadValue * escrowPercentage) / 100);
+    const escrowDepositAmount = Math.min(calculatedEscrow, 6500); // Cap at ₹6,500
+
+    // Check brand limit (max 2 per brand per city)
     const sellersInCity = await Seller.find({ 
       city: lead.projectInfo.area || lead.projectInfo.address || lead.projectInfo.city,
       status: 'approved',
@@ -972,10 +703,9 @@ exports.purchaseLead = async (req, res) => {
     });
 
     const brandCounts = {};
-    sellersInCity.forEach(seller => {
-      if (seller.brandOfProfileUsed) {
-        brandCounts[seller.brandOfProfileUsed] = 
-          (brandCounts[seller.brandOfProfileUsed] || 0) + 1;
+    sellersInCity.forEach(s => {
+      if (s.brandOfProfileUsed) {
+        brandCounts[s.brandOfProfileUsed] = (brandCounts[s.brandOfProfileUsed] || 0) + 1;
       }
     });
 
@@ -986,119 +716,57 @@ exports.purchaseLead = async (req, res) => {
     if (brandsAtLimit.includes(seller.brandOfProfileUsed)) {
       return res.status(400).json({
         success: false,
-        message: `Oops you have missed the bus by a whisker. Your brand in your city is already registered by 2 other fabricators.`,
+        message: `Your brand in this city is already registered by 2 other fabricators. Maximum limit reached.`,
         brandsAtLimit
       });
     }
- 
-    const pricePerSlot = actualPrice / slotsToBuy;
-    const freePerSlot = freeSqftToUse / slotsToBuy;
 
-    // slotsToBuy=6
-
-
-    // Build the new seller array (avoid modifying lead object directly)
-    const newSellers = [...(lead.seller || [])];
-    for (let i = 0; i < slotsToBuy; i++) {
-      newSellers.push({ 
-        sellerId,
-        purchasedAt: now,
-        pricePaid: pricePerSlot,
-        freeQuotaUsed: freePerSlot, // Distributed evenly but from single 100 limit
-      });
-    }
-
-    const newAvailableSlots = lead.availableSlots - slotsToBuy;
+    const now = new Date();
     
-    // Determine final status
+    // Add seller to lead
+    const newSellers = [...(lead.seller || [])];
+    newSellers.push({ 
+      sellerId,
+      escrowPaid: escrowDepositAmount,
+      purchasedAt: now,
+      paymentStatus: 'paid'
+    });
+
+    const newParticipatingCount = newSellers.length;
     let finalStatus = normalizedStatus;
-    if (newAvailableSlots === 0) {
+    
+    // If 3 sellers joined, move to in-progress
+    if (newParticipatingCount >= 3) {
       finalStatus = 'in-progress';
     }
 
-    // Ensure status is valid (redefine statusMap and validStatuses for this scope)
-    const validStatusesForUpdate = ['new', 'in-progress', 'closed', 'cancelled'];
-    const statusMapForUpdate = {
-      'active': 'in-progress',
-      'pending': 'new',
-      'sold': 'closed'
-    };
-    
-    if (finalStatus && !validStatusesForUpdate.includes(finalStatus)) {
-      finalStatus = statusMapForUpdate[finalStatus] || 'new';
-    }
-
-    // Avoid duplicate entries in seller.leads
+    // Add lead to seller's leads array
     if (!seller.leads.includes(leadId)) {
       seller.leads.push(leadId);
-    }
-
-    // Use updateOne with runValidators: false to bypass validation completely
-    // This prevents errors if status was invalid in the database
-    console.log('Updating lead with status:', finalStatus);
-    console.log('Valid statuses:', validStatusesForUpdate);
-    console.log('Status is valid:', validStatusesForUpdate.includes(finalStatus));
-    
-    // Ensure finalStatus is definitely valid
-    if (!validStatusesForUpdate.includes(finalStatus)) {
-      finalStatus = statusMapForUpdate[finalStatus] || 'new';
-      console.log('Final status normalized to:', finalStatus);
+      await seller.save();
     }
     
     const updateData = {
       $set: {
         seller: newSellers,
-        price: price,
-        availableSlots: newAvailableSlots,
+        participatingSellersCount: newParticipatingCount,
         status: finalStatus
       }
     };
 
-    // Use MongoDB's native collection to bypass Mongoose validation completely
-    // This ensures no validation errors even if status was invalid
-    console.log('Updating lead with native collection:', {
-      leadId: leadObjectId,
-      finalStatus,
+    await LeadCollection.updateOne(
+      { _id: leadObjectId },
       updateData
-    });
+    );
     
-    try {
-      await LeadCollection.updateOne(
-        { _id: leadObjectId },
-        updateData
-      );
-      console.log('Lead updated successfully using native collection');
-    } catch (updateError) {
-      console.error('Error updating lead with native collection:', updateError);
-      throw updateError;
-    }
-    
-    // Fetch the updated lead using native collection to avoid any validation
+    // Fetch updated lead
     const updatedLeadDoc = await LeadCollection.findOne({ _id: leadObjectId });
-    
-    // Convert MongoDB document to plain object
     const updatedLead = updatedLeadDoc ? {
       ...updatedLeadDoc,
       _id: updatedLeadDoc._id.toString()
     } : null;
-    
-    // Normalize status in the fetched lead if needed (safety check)
-    if (updatedLead && updatedLead.status && !validStatusesForUpdate.includes(updatedLead.status)) {
-      console.log('Warning: Fetched lead still has invalid status:', updatedLead.status);
-      const correctedStatus = statusMapForUpdate[updatedLead.status] || 'new';
-      // Update it again using native collection
-      await LeadCollection.updateOne(
-        { _id: leadObjectId },
-        { $set: { status: correctedStatus } }
-      );
-      // Update the object in memory
-      updatedLead.status = correctedStatus;
-    }
-    
-    // Save seller
-    await seller.save();
 
-    // Notify the buyer that someone purchased their lead
+    // Notify buyer about seller participation
     try {
       const { sendBuyerLeadPurchasedNotification, saveBuyerNotification } = require('../../utils/notificationHelper');
       const buyer = await User.findById(lead.buyer);
@@ -1107,7 +775,7 @@ exports.purchaseLead = async (req, res) => {
           leadId: leadId.toString(),
           sellerName: seller.companyName || seller.contactPerson || 'A seller',
           location: lead.projectInfo?.area || lead.projectInfo?.address || 'your area',
-          remainingSlots: newAvailableSlots,
+          remainingSlots: 3 - newParticipatingCount,
         };
 
         if (buyer.fcmToken) {
@@ -1116,26 +784,21 @@ exports.purchaseLead = async (req, res) => {
           } catch (e) {
             console.error('❌ Failed to send buyer FCM notification:', e.message);
           }
-        } else {
-          console.log('⚠️ Buyer has no FCM token, skipping push notification');
         }
-
         await saveBuyerNotification(buyer._id, notifData);
       }
     } catch (notifError) {
       console.error('❌ Error notifying buyer of lead purchase:', notifError);
-      // Don't fail the purchase if notification fails
     }
 
     res.status(200).json({
       success: true,
-      message: 'Lead purchased successfully',
-      lead: updatedLead || lead,
-      actualPricePaid: actualPrice,
-      freeSqftUsed: freeSqftToUse,
-      paidSqft: paidSqft,
-      pricePerSqft: pricePerSqft,
-      // monthlyQuotaRemaining: seller.freeQuota.currentMonthQuota
+      message: `Successfully purchased lead access. Escrow deposit: ₹${escrowDepositAmount}`,
+      lead: updatedLead,
+      escrowPaid: escrowDepositAmount,
+      leadValue: leadValue,
+      participatingSellers: newParticipatingCount,
+      remainingSlots: 3 - newParticipatingCount
     });
 
   } catch (error) {
@@ -1148,7 +811,6 @@ exports.purchaseLead = async (req, res) => {
   }
 };
 
-// Update lead status
 exports.updateLeadStatus = async (req, res) => {
   try {
     const { leadId, status } = req.body;
@@ -1203,11 +865,9 @@ exports.updateLeadStatus = async (req, res) => {
     });
   }
 };
-
-// Calculate price for a lead (utility endpoint)
 exports.calculateLeadPrice = async (req, res) => {
   try {
-    const { quotes } = req.body;
+    const { quotes, categoryId } = req.body;
 
     if (!quotes || !Array.isArray(quotes)) {
       return res.status(400).json({
@@ -1216,19 +876,56 @@ exports.calculateLeadPrice = async (req, res) => {
       });
     }
 
+    if (!categoryId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category ID is required'
+      });
+    }
+
+    // Get category for pricing
+    const category = await Category.findById(categoryId);
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
     // Calculate total square feet
     const totalSqft = quotes.reduce((total, quote) => {
-      const sqft = (quote.height * quote.width * quote.quantity) / 144;
-      return total + sqft;
+      const sqft = quote.sqft || (quote.height * quote.width);
+      return total + (sqft * quote.quantity);
     }, 0);
 
-    // Calculate price per square foot
-    const pricePerSqft = 6250 / (totalSqft * 6);
+    // NEW category-based pricing
+    const PRICE_PER_SQFT = {
+      premium: 550,
+      mid: 450,
+      economy: 350
+    };
+
+    const ESCROW_PERCENTAGE = {
+      premium: 7.5,
+      mid: 7.5,
+      economy: 5.0
+    };
+
+    const categoryName = category.name.toLowerCase();
+    const pricePerSqft = PRICE_PER_SQFT[categoryName] || PRICE_PER_SQFT.mid;
+    const leadValue = Math.round(totalSqft * pricePerSqft);
+    const escrowPercentage = ESCROW_PERCENTAGE[categoryName] || ESCROW_PERCENTAGE.mid;
+    const calculatedEscrow = Math.round((leadValue * escrowPercentage) / 100);
+    const escrowDepositAmount = Math.min(calculatedEscrow, 6500); // Cap at ₹6,500
 
     res.status(200).json({
       success: true,
       totalSqft,
-      pricePerSqft
+      pricePerSqft,
+      leadValue,
+      escrowDepositAmount,
+      escrowPercentage,
+      category: category.name
     });
   } catch (error) {
     console.error('Error calculating lead price:', error);
@@ -1239,36 +936,6 @@ exports.calculateLeadPrice = async (req, res) => {
     });
   }
 };
-
-exports.getSellerQuota = async (req, res) => {
-  try {
-    const seller = await Seller.findById(req.seller._id).select('freeQuota');
-    
-    if (!seller) {
-      return res.status(404).json({
-        success: false,
-        message: 'Seller not found'
-      });
-    }
-    seller.checkQuotaReset();
-    if (seller.isModified()) await seller.save();
-
-    res.json({
-      success: true,
-      remainingQuota: seller.freeQuota?.currentMonthQuota,
-      nextReset: seller.freeQuota?.nextResetDate
-    });
-  } catch (error) {
-    console.error('Error fetching seller quota:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error',
-      error: error.message 
-    });
-  }
-};
-
-// Get all cities from leads
 exports.getCities = async (req, res) => {
   try {
     console.log('\n📍 [ADMIN] getCities called');
@@ -1284,10 +951,7 @@ exports.getCities = async (req, res) => {
     const citiesFromAddressCity = await Lead.distinct('projectInfo.address.city');
     const citiesFromCity = await Lead.distinct('projectInfo.city');
     const citiesFromArea = await Lead.distinct('projectInfo.area'); // Sometimes area contains city info
-    
-    console.log('🏙️ Cities from projectInfo.address.city:', citiesFromAddressCity);
-    console.log('🏙️ Cities from projectInfo.city:', citiesFromCity);
-    console.log('🏙️ Cities from projectInfo.area:', citiesFromArea);
+
     
     // Combine all possible city sources
     const allCities = [
@@ -1316,8 +980,6 @@ exports.getCities = async (req, res) => {
     });
   }
 };
-
-// Get leads by city
 exports.getLeadsByCity = async (req, res) => {
   try {
     const { city } = req.params;
@@ -1381,8 +1043,6 @@ exports.getLeadsByCity = async (req, res) => {
     });
   }
 };
-
-// Get expired leads
 exports.getExpiredLeads = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
@@ -1429,8 +1089,6 @@ exports.getExpiredLeads = async (req, res) => {
     });
   }
 };
-
-// Get lead analytics
 exports.getLeadAnalytics = async (req, res) => {
   try {
     console.log('\n📊 [ADMIN] getLeadAnalytics called');
@@ -1442,7 +1100,7 @@ exports.getLeadAnalytics = async (req, res) => {
       Lead.countDocuments({}),
       Lead.countDocuments({
         createdAt: { $gte: fortyEightHoursAgo },
-        availableSlots: { $gt: 0 },
+        participatingSellersCount: { $lt: 3 },
         status: { $in: ['new', 'in-progress'] }
       }),
       Lead.countDocuments({
@@ -1461,9 +1119,7 @@ exports.getLeadAnalytics = async (req, res) => {
           $group: {
             _id: null,
             totalRevenue: {
-              $sum: {
-                $multiply: ['$dynamicSlotPrice', 1]
-              }
+              $sum: { $ifNull: ['$seller.pricePaid', 0] }
             }
           }
         }
@@ -1492,8 +1148,6 @@ exports.getLeadAnalytics = async (req, res) => {
     });
   }
 };
-
-// Get city analytics
 exports.getCityAnalytics = async (req, res) => {
   try {
     console.log('\n🏙️ [ADMIN] getCityAnalytics called');
@@ -1520,10 +1174,11 @@ exports.getCityAnalytics = async (req, res) => {
           totalLeads: { $sum: 1 },
           totalRevenue: {
             $sum: {
-              $multiply: [
-                { $size: { $ifNull: ['$seller', []] } },
-                { $ifNull: ['$dynamicSlotPrice', 0] }
-              ]
+              $reduce: {
+                input: { $ifNull: ['$seller', []] },
+                initialValue: 0,
+                in: { $add: ['$$value', { $ifNull: ['$$this.pricePaid', 0] }] }
+              }
             }
           },
           avgSqft: { $avg: '$totalSqft' }
@@ -1554,8 +1209,6 @@ exports.getCityAnalytics = async (req, res) => {
     });
   }
 };
-
-// Get brand analytics
 exports.getBrandAnalytics = async (req, res) => {
   try {
     console.log('\n🏷️ [ADMIN] getBrandAnalytics called');
@@ -1580,7 +1233,7 @@ exports.getBrandAnalytics = async (req, res) => {
           _id: '$sellerInfo.brandOfProfileUsed',
           totalPurchases: { $sum: 1 },
           totalRevenue: {
-            $sum: { $ifNull: ['$seller.pricePaid', '$dynamicSlotPrice', 0] }
+            $sum: { $ifNull: ['$seller.pricePaid', 0] }
           },
           uniqueLeads: { $addToSet: '$_id' }
         }
@@ -1620,8 +1273,6 @@ exports.getBrandAnalytics = async (req, res) => {
     });
   }
 };
-
-// Get comprehensive lead details
 exports.getComprehensiveLeadDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1656,8 +1307,6 @@ exports.getComprehensiveLeadDetails = async (req, res) => {
     });
   }
 };
-
-// Get lead purchase history
 exports.getLeadPurchaseHistory = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1685,9 +1334,8 @@ exports.getLeadPurchaseHistory = async (req, res) => {
       sellerCompany: purchase.sellerId?.companyName || '',
       sellerCity: purchase.sellerId?.city || '',
       brandOfProfileUsed: purchase.sellerId?.brandOfProfileUsed || '',
-      amount: purchase.pricePaid || lead.dynamicSlotPrice || 0,
-      pricePaid: purchase.pricePaid || lead.dynamicSlotPrice || 0,
-      freeQuotaUsed: purchase.freeQuotaUsed || 0,
+      amount: purchase.pricePaid || 0,
+      pricePaid: purchase.pricePaid || 0,
       purchaseDate: purchase.purchasedAt || purchase.createdAt,
       purchasedAt: purchase.purchasedAt || purchase.createdAt,
       paymentStatus: 'completed', // Default status
@@ -1710,8 +1358,6 @@ exports.getLeadPurchaseHistory = async (req, res) => {
     });
   }
 };
-
-// Get lead visibility status
 exports.getLeadVisibilityStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1732,14 +1378,14 @@ exports.getLeadVisibilityStatus = async (req, res) => {
     const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
     
     const isWithin48Hours = createdAt >= fortyEightHoursAgo;
-    const hasAvailableSlots = lead.availableSlots > 0;
+    const hasAvailableSlots = (lead.participatingSellersCount || 0) < 3;
     const validStatus = ['new', 'in-progress'].includes(lead.status);
     
     const isVisible = isWithin48Hours && hasAvailableSlots && validStatus;
     
     const reasons = [];
     if (!isWithin48Hours) reasons.push('Lead is older than 48 hours');
-    if (!hasAvailableSlots) reasons.push('No available slots remaining');
+    if (!hasAvailableSlots) reasons.push('All 3 sellers have joined');
     if (!validStatus) reasons.push(`Invalid status: ${lead.status}`);
     
     const visibilityStatus = {
@@ -1747,6 +1393,8 @@ exports.getLeadVisibilityStatus = async (req, res) => {
       hoursSinceCreation,
       isWithin48Hours,
       hasAvailableSlots,
+      participatingSellers: lead.participatingSellersCount || 0,
+      maxSellers: 3,
       validStatus,
       reasons: reasons.length > 0 ? reasons : null
     };
@@ -1766,8 +1414,6 @@ exports.getLeadVisibilityStatus = async (req, res) => {
     });
   }
 };
-
-// Get lead timeline
 exports.getLeadTimeline = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1834,8 +1480,6 @@ exports.getLeadTimeline = async (req, res) => {
     });
   }
 };
-
-// Get lead invoices (placeholder - implement based on your invoice system)
 exports.getLeadInvoices = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1859,8 +1503,6 @@ exports.getLeadInvoices = async (req, res) => {
     });
   }
 };
-
-// Get lead details (basic version - fallback)
 exports.getLeadDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1894,8 +1536,6 @@ exports.getLeadDetails = async (req, res) => {
     });
   }
 };
-
-// Get lead purchases (basic version - fallback)
 exports.getLeadPurchases = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1919,7 +1559,7 @@ exports.getLeadPurchases = async (req, res) => {
       buyerPhone: purchase.sellerId?.phoneNumber || '',
       buyerCompany: purchase.sellerId?.companyName || '',
       buyerCity: purchase.sellerId?.city || '',
-      amount: purchase.pricePaid || lead.dynamicSlotPrice || 0,
+      amount: purchase.pricePaid || 0,
       purchaseDate: purchase.purchasedAt || purchase.createdAt,
       paymentStatus: 'completed'
     }));
@@ -1939,8 +1579,6 @@ exports.getLeadPurchases = async (req, res) => {
     });
   }
 };
-
-// Get comprehensive admin leads (enhanced version of getAllLeads)
 exports.getAllLeadsAdmin = async (req, res) => {
   try {
     console.log('\n🔍 [ADMIN] getAllLeadsAdmin called');
@@ -1988,32 +1626,12 @@ exports.getAllLeadsAdmin = async (req, res) => {
       if (dateTo) filter.createdAt.$lte = new Date(dateTo + 'T23:59:59.999Z');
     }
     
-    // Price range filter
-    if (minPrice || maxPrice) {
-      filter.$expr = {};
-      const priceConditions = [];
-      
-      if (minPrice) {
-        priceConditions.push({
-          $gte: [
-            { $multiply: ['$totalSqft', '$basePricePerSqft'] },
-            parseFloat(minPrice)
-          ]
-        });
-      }
-      
-      if (maxPrice) {
-        priceConditions.push({
-          $lte: [
-            { $multiply: ['$totalSqft', '$basePricePerSqft'] },
-            parseFloat(maxPrice)
-          ]
-        });
-      }
-      
-      if (priceConditions.length > 0) {
-        filter.$expr = priceConditions.length === 1 ? priceConditions[0] : { $and: priceConditions };
-      }
+    // Price range filter (using leadValue)
+    if (minPrice) {
+      filter.leadValue = { ...filter.leadValue, $gte: parseFloat(minPrice) };
+    }
+    if (maxPrice) {
+      filter.leadValue = { ...filter.leadValue, $lte: parseFloat(maxPrice) };
     }
     
     // Sqft range filter
@@ -2046,9 +1664,12 @@ exports.getAllLeadsAdmin = async (req, res) => {
       const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
       
       const isWithin48Hours = createdAt >= fortyEightHoursAgo;
-      const hasAvailableSlots = lead.availableSlots > 0;
+      const hasAvailableSlots = (lead.participatingSellersCount || 0) < 3;
       const validStatus = ['new', 'in-progress'].includes(lead.status);
       const isVisible = isWithin48Hours && hasAvailableSlots && validStatus;
+      
+      // Calculate total revenue from actual purchases
+      const totalRevenue = (lead.seller || []).reduce((sum, s) => sum + (s.pricePaid || 0), 0);
       
       return {
         ...lead,
@@ -2060,11 +1681,10 @@ exports.getAllLeadsAdmin = async (req, res) => {
         location: lead.projectInfo?.name || 'N/A',
         address: lead.projectInfo?.address || 'N/A',
         pincode: lead.projectInfo?.pincode || 'N/A',
-        // Keep categoryId for backward compatibility
         categoryId: lead.category,
-        estimatedValue: lead.totalSqft * (lead.basePricePerSqft || 10.5),
+        estimatedValue: lead.leadValue || 0,
         purchaseCount: lead.seller?.length || 0,
-        totalRevenue: (lead.seller?.length || 0) * (lead.dynamicSlotPrice || 0),
+        totalRevenue: totalRevenue,
         isVisible,
         hoursSinceCreation,
         isExpired: !isWithin48Hours
@@ -2091,8 +1711,6 @@ exports.getAllLeadsAdmin = async (req, res) => {
     });
   }
 };
-
-// Extend lead expiry
 exports.extendLeadExpiry = async (req, res) => {
   try {
     const { id } = req.params;
@@ -2115,9 +1733,6 @@ exports.extendLeadExpiry = async (req, res) => {
         message: 'Lead not found'
       });
     }
-    
-    // Extend the creation date by the specified number of days
-    // This effectively extends the 48-hour visibility window
     const currentCreatedAt = new Date(lead.createdAt);
     const newCreatedAt = new Date(currentCreatedAt.getTime() + (days * 24 * 60 * 60 * 1000));
     

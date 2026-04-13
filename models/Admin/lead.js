@@ -52,10 +52,39 @@ const leadSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Seller'
     },
+    escrowPaid: {
+      type: Number,
+      required: true
+    },
     purchasedAt: {
       type: Date,
       default: Date.now
     },
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'paid', 'refunded', 'transferred_to_revenue', 'declined'],
+      default: 'paid'
+    },
+    sellerStatus: {
+      type: String,
+      enum: ['active', 'declined', 'winner'],
+      default: 'active'
+    },
+    declinedAt: {
+      type: Date
+    },
+    refundAmount: {
+      type: Number
+    },
+    gatewayFee: {
+      type: Number
+    },
+    refundedAt: {
+      type: Date
+    },
+    escrowTransferredAt: {
+      type: Date
+    }
   }],
   price: {
     type: Number
@@ -125,24 +154,59 @@ const leadSchema = new mongoose.Schema({
       return this.quotes.reduce((total, quote) => total + quote.quantity, 0);
     }
   },
-  pricePerSqft: { type: Number, default: 10.50 },
-  availableSlots: {
+  pricePerSqft: { 
     type: Number,
-    default: 6,
+    required: true
+  },
+  
+  // Escrow system fields
+  leadValue: {
+    type: Number,
+    required: true
+  },
+  escrowDepositAmount: {
+    type: Number,
+    required: true
+  },
+  maxSellers: {
+    type: Number,
+    default: 3,
+    min: 3,
+    max: 3
+  },
+  participatingSellersCount: {
+    type: Number,
+    default: 0,
     min: 0,
-    max: 6
+    max: 3
   },
   status: {
     type: String,
     enum: ['new', 'in-progress', 'closed', 'cancelled'],
     default: 'new'
   },
-
-  //new fields :
-  basePricePerSqft: { type: Number, default: 10.50 },
-  dynamicSlotPrice: { type: Number }, // will be calculated
-  maxSlots: { type: Number, default: 6 }, // default 6 slots per lead
-  overProfit:{type : Boolean , default : false},
+  
+  // Transaction finalization fields
+  winnerSellerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Seller'
+  },
+  buyerConfirmedAt: {
+    type: Date
+  },
+  sellerConfirmedAt: {
+    type: Date
+  },
+  transactionConfirmed: {
+    type: Boolean,
+    default: false
+  },
+  transactionStatus: {
+    type: String,
+    enum: ['pending', 'pending_seller_confirmation', 'confirmed', 'disputed'],
+    default: 'pending'
+  },
+  
   createdAt: {
     type: Date,
     default: Date.now
