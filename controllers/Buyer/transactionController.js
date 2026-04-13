@@ -191,9 +191,10 @@ exports.selectWinningSeller = async (req, res) => {
       s => s.sellerId._id.toString() === sellerId.toString()
     );
 
-    // Send notification to winning seller
+    // Send notification to winning seller (FCM + Email)
     try {
       const { sendSellerWinNotification, saveSellerNotification } = require('../../utils/notificationHelper');
+      const { sendSellerAdvanceConfirmationEmail } = require('../../utils/emailHelper');
       
       const notifData = {
         leadId: lead._id.toString(),
@@ -202,11 +203,27 @@ exports.selectWinningSeller = async (req, res) => {
         leadValue: lead.leadValue
       };
 
+      // Send FCM notification
       if (winnerSeller.sellerId.fcmToken) {
         await sendSellerWinNotification(winnerSeller.sellerId.fcmToken, notifData);
       }
       
+      // Save in-app notification
       await saveSellerNotification(winnerSeller.sellerId._id, notifData);
+
+      // Send email notification
+      if (winnerSeller.sellerId.email) {
+        await sendSellerAdvanceConfirmationEmail(
+          winnerSeller.sellerId.email,
+          winnerSeller.sellerId.contactPerson || winnerSeller.sellerId.companyName,
+          {
+            buyerName: lead.buyer.name,
+            projectLocation: lead.projectInfo.area || lead.projectInfo.address,
+            leadValue: lead.leadValue,
+            leadId: lead._id.toString()
+          }
+        );
+      }
     } catch (notifError) {
       console.error('Error sending winner notification:', notifError);
     }
@@ -262,7 +279,7 @@ exports.sellerConfirmWin = async (req, res) => {
     const sellerId = req.seller._id;
 
     const lead = await Lead.findById(leadId)
-      .populate('buyer', 'name email mobileNumber')
+      .populate('buyer', 'name email mobileNumber fcmToken')
       .populate({
         path: 'seller.sellerId',
         select: 'companyName contactPerson phoneNumber email'
@@ -280,6 +297,14 @@ exports.sellerConfirmWin = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'You are not the selected winner for this lead'
+      });
+    }
+
+    // Check if buyer has confirmed advance payment
+    if (lead.transactionStatus !== 'pending_seller_confirmation') {
+      return res.status(400).json({
+        success: false,
+        message: 'Buyer has not confirmed advance payment yet'
       });
     }
 
@@ -303,16 +328,102 @@ exports.sellerConfirmWin = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Transaction confirmed successfully! Escrow processed.',
+      message: 'Advance payment confirmed successfully! Escrow processed.',
       leadId: lead._id,
       status: 'confirmed'
     });
 
   } catch (error) {
-    console.error('Error confirming win:', error);
+    console.error('Error confirming advance payment:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to confirm transaction',
+      error: error.message
+    });
+  }
+};
+
+exports.sellerIgnoreAdvance = async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const sellerId = req.seller._id;
+
+    const lead = await Lead.findById(leadId)
+      .populate('buyer', 'name email mobileNumber fcmToken')
+      .populate({
+        path: 'seller.sellerId',
+        select: 'companyName contactPerson phoneNumber email'
+      });
+
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+
+    // Check if this seller is the selected winner
+    if (!lead.winnerSellerId || lead.winnerSellerId.toString() !== sellerId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not the selected winner for this lead'
+      });
+    }
+
+    // Check if buyer has confirmed advance payment
+    if (lead.transactionStatus !== 'pending_seller_confirmation') {
+      return res.status(400).json({
+        success: false,
+        message: 'Buyer has not confirmed advance payment yet'
+      });
+    }
+
+    // Reset winner selection
+    lead.winnerSellerId = null;
+    lead.buyerConfirmedAt = null;
+    lead.transactionStatus = 'active';
+    
+    // Reset all seller statuses back to active
+    lead.seller.forEach(sellerEntry => {
+      sellerEntry.sellerStatus = 'active';
+      sellerEntry.declinedAt = null;
+    });
+    
+    await lead.save({ validateModifiedOnly: true });
+
+    // Notify buyer that seller ignored the advance payment
+    try {
+      const { sendBuyerAdvanceIgnoredNotification, saveBuyerAdvanceIgnoredNotification } = require('../../utils/notificationHelper');
+      
+      const winnerSeller = lead.seller.find(
+        s => s.sellerId._id.toString() === sellerId.toString()
+      );
+
+      const notifData = {
+        sellerName: winnerSeller.sellerId.companyName || winnerSeller.sellerId.contactPerson,
+        projectLocation: lead.projectInfo.area || lead.projectInfo.address
+      };
+
+      if (lead.buyer.fcmToken) {
+        await sendBuyerAdvanceIgnoredNotification(lead.buyer.fcmToken, notifData);
+      }
+      await saveBuyerAdvanceIgnoredNotification(lead.buyer._id, notifData);
+    } catch (notifError) {
+      console.error('Error sending buyer notification:', notifError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Advance payment ignored. Selection has been cancelled.',
+      leadId: lead._id,
+      status: 'active'
+    });
+
+  } catch (error) {
+    console.error('Error ignoring advance payment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process request',
       error: error.message
     });
   }

@@ -250,3 +250,33 @@ exports.saveSellerDeclineNotification = async (sellerId, data) => {
     userModel: 'Seller',
   });
 };
+
+
+// ─── Buyer: Advance Payment Ignored by Seller ───────────────────────────────
+
+exports.sendBuyerAdvanceIgnoredNotification = async (fcmToken, data) => {
+  const { sellerName, projectLocation } = data;
+  return sendFCM({
+    notification: {
+      title: '⚠️ Seller Did Not Confirm',
+      body: `${sellerName} indicated they have not received the advance payment for your project in ${projectLocation}. Please verify and try again.`,
+    },
+    data: { 
+      type: 'advance_ignored', 
+      timestamp: new Date().toISOString() 
+    },
+    token: fcmToken,
+  });
+};
+
+exports.saveBuyerAdvanceIgnoredNotification = async (buyerId, data) => {
+  const { sellerName, projectLocation } = data;
+  await Notification.create({
+    title: '⚠️ Advance Payment Not Confirmed',
+    message: `${sellerName} indicated they have not received the advance payment for your project in ${projectLocation}. The selection has been cancelled. Please verify the payment and select again.`,
+    userType: 'buyer',
+    type: 'advance_ignored',
+    userId: buyerId,
+    userModel: 'User',
+  });
+};

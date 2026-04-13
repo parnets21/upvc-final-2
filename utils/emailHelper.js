@@ -231,3 +231,157 @@ exports.sendSellerRejectionEmail = async (sellerEmail, sellerName, reason) => {
     throw error;
   }
 };
+
+
+// Send advance payment confirmation email to seller
+exports.sendSellerAdvanceConfirmationEmail = async (sellerEmail, sellerName, data) => {
+  try {
+    const transporter = createTransporter();
+    const { buyerName, projectLocation, leadValue, leadId } = data;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'UPVC Connect <noreply@upvcconnect.com>',
+      to: sellerEmail,
+      subject: '🎉 Congratulations! Buyer Confirmed Advance Payment - Action Required',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              background-color: #f9f9f9;
+            }
+            .header {
+              background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+              color: white;
+              padding: 30px;
+              text-align: center;
+              border-radius: 10px 10px 0 0;
+            }
+            .content {
+              background: white;
+              padding: 30px;
+              border-radius: 0 0 10px 10px;
+            }
+            .lead-details {
+              background: #f5f5f5;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 20px 0;
+            }
+            .detail-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 10px 0;
+              border-bottom: 1px solid #e0e0e0;
+            }
+            .detail-label {
+              font-weight: bold;
+              color: #666;
+            }
+            .detail-value {
+              color: #000;
+            }
+            .cta-button {
+              display: inline-block;
+              background: #000;
+              color: white;
+              padding: 15px 40px;
+              text-decoration: none;
+              border-radius: 8px;
+              margin: 20px 0;
+              font-weight: bold;
+            }
+            .warning-box {
+              background: #FFF3E0;
+              border-left: 4px solid #FF9800;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+            }
+            .footer {
+              text-align: center;
+              padding: 20px;
+              color: #666;
+              font-size: 12px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🎉 Congratulations!</h1>
+              <p style="font-size: 18px; margin: 10px 0 0 0;">You've Been Selected as the Winner!</p>
+            </div>
+            
+            <div class="content">
+              <p>Dear ${sellerName},</p>
+              
+              <p><strong>Great news!</strong> ${buyerName} has selected you as the winner and confirmed that they have paid the advance payment.</p>
+              
+              <div class="lead-details">
+                <h3>Project Details:</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Buyer:</span>
+                  <span class="detail-value">${buyerName}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Location:</span>
+                  <span class="detail-value">${projectLocation}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Lead Value:</span>
+                  <span class="detail-value">₹${leadValue.toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+
+              <div class="warning-box">
+                <strong>⚠️ Action Required:</strong>
+                <p style="margin: 10px 0 0 0;">Please verify that you have received the advance payment from the buyer. Open the UPVC Connect app and confirm to finalize the deal.</p>
+              </div>
+
+              <p><strong>Important:</strong></p>
+              <ul>
+                <li>Only confirm if you have actually received the advance payment</li>
+                <li>Your escrow deposit will be transferred to UPVC Connect upon confirmation</li>
+                <li>The transaction will be finalized and cannot be undone</li>
+              </ul>
+
+              <center>
+                <p style="margin: 30px 0 10px 0;">Open the app to confirm:</p>
+                <a href="upvcconnect://lead/${leadId}/confirm" class="cta-button">
+                  Open UPVC Connect App →
+                </a>
+              </center>
+
+              <p style="margin-top: 30px;">If you have any questions or concerns, please contact our support team immediately.</p>
+              
+              <p>Best regards,<br>
+              <strong>UPVC Connect Team</strong></p>
+            </div>
+            
+            <div class="footer">
+              <p>This is an automated email from UPVC Connect. Please do not reply to this email.</p>
+              <p>&copy; 2024 UPVC Connect. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Advance confirmation email sent to:', sellerEmail);
+  } catch (error) {
+    console.error('❌ Error sending advance confirmation email:', error);
+    throw error;
+  }
+};
