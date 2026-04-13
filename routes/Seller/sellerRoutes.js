@@ -3,6 +3,7 @@ const router = express.Router();
 const upload = require("../../middlewares/upload");
 const otpController = require("../../controllers/Seller/otpController");
 const sellerController = require("../../controllers/Seller/sellerController");
+const transactionController = require("../../controllers/Buyer/transactionController");
 const { authenticateSeller } = require("../../middlewares/sellerAuth");
 
 // OTP routes
@@ -34,6 +35,11 @@ router.put(
 );
 
 router.get('/getAllSeller' ,sellerController.getAllSellers)
+
+// Transaction/Escrow routes - Seller confirms/ignores advance payment
+router.post('/leads/:leadId/confirm-advance', authenticateSeller, transactionController.sellerConfirmWin);
+router.post('/leads/:leadId/ignore-advance', authenticateSeller, transactionController.sellerIgnoreAdvance);
+router.get('/leads/:leadId/status', authenticateSeller, transactionController.getSellerLeadStatus);
 
 // New explicit video upload
 router.post(
