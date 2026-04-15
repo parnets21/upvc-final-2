@@ -261,7 +261,8 @@ exports.getBuyerLeads = async (req, res) => {
       const sellers = lead.seller.map(seller => {
         const sellerData = seller.sellerId || {};
         return {
-          id: seller._id,
+          id: seller._id, // Purchase entry ID
+          sellerId: sellerData._id, // Actual seller ID for API calls
           brandName: sellerData.brandOfProfileUsed || 'Unknown Brand',
           video: toAbsoluteUrl(sellerData.businessProfileVideo),
           name: sellerData.contactPerson || 'Unknown',
