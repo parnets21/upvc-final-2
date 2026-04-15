@@ -7,6 +7,7 @@ const { authenticateSeller } = require('../../middlewares/sellerAuth');
 // Buyer routes - select winner
 router.get('/leads/:leadId/transaction', authenticate, transactionController.getLeadTransaction);
 router.post('/leads/:leadId/select-winner', authenticate, transactionController.selectWinningSeller);
+router.post('/leads/:leadId/decline-seller', authenticate, transactionController.declineSeller);
 
 // Seller routes - confirm/ignore advance payment
 router.post('/leads/:leadId/confirm-advance', authenticateSeller, transactionController.sellerConfirmWin);

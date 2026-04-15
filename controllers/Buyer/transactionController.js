@@ -273,6 +273,115 @@ exports.selectWinningSeller = async (req, res) => {
     });
   }
 };
+
+exports.declineSeller = async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const { sellerId } = req.body;
+    const buyerId = req.user._id;
+
+    if (!sellerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller ID is required'
+      });
+    }
+
+    const lead = await Lead.findById(leadId)
+      .populate('buyer', 'name email mobileNumber')
+      .populate({
+        path: 'seller.sellerId',
+        select: 'companyName contactPerson phoneNumber fcmToken email'
+      });
+
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+
+    // Verify buyer owns this lead
+    if (lead.buyer._id.toString() !== buyerId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access'
+      });
+    }
+
+    // Check if winner already selected
+    if (lead.winnerSellerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Winner has already been selected. Cannot decline sellers now.'
+      });
+    }
+
+    // Find the seller entry
+    const sellerEntry = lead.seller.find(
+      s => s.sellerId._id.toString() === sellerId.toString()
+    );
+
+    if (!sellerEntry) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller did not participate in this lead'
+      });
+    }
+
+    // Check if already declined
+    if (sellerEntry.sellerStatus === 'declined') {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller has already been declined'
+      });
+    }
+
+    // Mark seller as declined
+    sellerEntry.sellerStatus = 'declined';
+    sellerEntry.declinedAt = new Date();
+    
+    await lead.save({ validateModifiedOnly: true });
+
+    // Send decline notification to seller
+    try {
+      const Seller = require('../../models/Seller/Seller');
+      const declinedSeller = await Seller.findById(sellerId);
+      
+      const declineData = {
+        projectLocation: lead.projectInfo.area || lead.projectInfo.address,
+        buyerName: lead.buyer.name
+      };
+
+      // Send push notification if FCM token exists
+      if (declinedSeller && declinedSeller.fcmToken) {
+        const { sendSellerDeclineNotification } = require('../../utils/notificationHelper');
+        await sendSellerDeclineNotification(declinedSeller.fcmToken, declineData);
+      }
+      
+      // Save in-app notification
+      const { saveSellerDeclineNotification } = require('../../utils/notificationHelper');
+      await saveSellerDeclineNotification(sellerId, declineData);
+    } catch (notifError) {
+      console.error('Error sending decline notification:', notifError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Seller declined successfully. They will receive a refund notification.',
+      leadId: lead._id,
+      declinedSellerId: sellerId
+    });
+
+  } catch (error) {
+    console.error('Error declining seller:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to decline seller',
+      error: error.message
+    });
+  }
+};
 exports.sellerConfirmWin = async (req, res) => {
   try {
     const { leadId } = req.params;
