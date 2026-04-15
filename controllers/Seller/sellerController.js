@@ -138,7 +138,8 @@ exports.getSellerProfile = async (req, res) => {
         transactionConfirmed: lead.transactionConfirmed || false,
         needsConfirmation: lead.winnerSellerId && 
                           lead.winnerSellerId.toString() === sellerId && 
-                          !lead.transactionConfirmed
+                          !lead.transactionConfirmed,
+        escrowPaid: sellerEntry?.escrowPaid || 0
       };
     });
 
