@@ -490,7 +490,7 @@ exports.sellerIgnoreAdvance = async (req, res) => {
     // Reset winner selection
     lead.winnerSellerId = null;
     lead.buyerConfirmedAt = null;
-    lead.transactionStatus = 'active';
+    lead.transactionStatus = 'pending';
     
     // Reset all seller statuses back to active
     lead.seller.forEach(sellerEntry => {
@@ -525,7 +525,7 @@ exports.sellerIgnoreAdvance = async (req, res) => {
       success: true,
       message: 'Advance payment ignored. Selection has been cancelled.',
       leadId: lead._id,
-      status: 'active'
+      status: 'pending'
     });
 
   } catch (error) {
