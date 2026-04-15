@@ -263,6 +263,7 @@ exports.getBuyerLeads = async (req, res) => {
         return {
           id: seller._id, // Purchase entry ID
           sellerId: sellerData._id, // Actual seller ID for API calls
+          sellerStatus: seller.sellerStatus || 'active', // Add seller status
           brandName: sellerData.brandOfProfileUsed || 'Unknown Brand',
           video: toAbsoluteUrl(sellerData.businessProfileVideo),
           name: sellerData.contactPerson || 'Unknown',
